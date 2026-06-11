@@ -79,20 +79,16 @@ try:
 
 
     # --- ENCLENCHEMENT DE LA REQUÊTE ET AFFICHAGE ---
-    # On n'affiche rien tant que les critères minimaux (Année et Club) ne sont pas cochés
     if not annee_valide:
         st.info("💡 En attente de vos critères : Veuillez sélectionner une **Année** pour commencer.")
     elif not club_valide:
         st.info("💡 Étape suivante : Veuillez sélectionner un **Club** pour charger les matchs correspondants.")
     else:
-        # Si Année et Club sont valides, on prépare la requête finale
         requete = conn.table("test").select("*").eq("Annee", annee_choisie).eq("Equipe1", club_choisi)
 
-        # Si un joueur spécifique est demandé (et qu'on a pas laissé "Tous les joueurs")
         if joueur_choisi != "Tous les joueurs":
             requete = requete.eq("Joueur1", joueur_choisi)
 
-        # Exécution (Sécurité limitée à 5000 lignes, mais ici avec Année + Club ce sera très léger)
         reponse = requete.limit(5000).execute()
         df_resultat = pd.DataFrame(reponse.data)
 
@@ -101,44 +97,48 @@ try:
         else:
             st.subheader(f"📋 Records trouvés ({len(df_resultat)} match(s))")
             
-            # Structure d'affichage des colonnes
+            # Réorganisation des colonnes d'affichage avec toutes tes nouvelles variables SQL
             colonnes_ordonnees = [
-                "Annee", "Division", "Semaine", "Match", 
-                "Equipe1", "Joueur1", "ClassementJ1", 
+                "id", "Annee", "Division", "Semaine", "Match", 
+                "Equipe1", "Joueur1", "ClassementJ1", "ClassJ1New", "PointsJ1",
                 "Resultat1.1", "Resultat1.2", "Resultat2.1", "Resultat2.2", 
-                "ClassementJ2", "Joueur2", "Equipe2", "MatchNonFF"
+                "ClassementJ2", "ClassJ2New", "Joueur2", "Equipe2", 
+                "VictoireJ1", "VictoireJ2", "Match Joué", "MatchNonFF"
             ]
             colonnes_visibles = [col for col in colonnes_ordonnees if col in df_resultat.columns]
             
-            # Affichage final
+            # Affichage du tableau de données brutes
             st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
 
-# --- SECTION TABLEAU CROISÉ DYNAMIQUE : COMPTAGE DES MATCHS ---
-        st.markdown("---")
-        st.header("📊 Tableau Croisé Dynamique : Volume de Matchs")
-        st.write("Ce tableau croise les Équipes et les Joueurs (en lignes) avec les Années et les Semaines (en colonnes).")
 
-        # 1. Construction du TCD multi-index
-        # 'index=[...]' crée les sous-groupements en lignes (Équipe > Joueur)
-        # 'columns=[...]' crée les sous-groupements en colonnes (Année > Semaine)
-        tcd_comptage = df_resultat.pivot_table(
-            index=["Equipe1", "Joueur1", "Annee", "Semaine"],
-            columns=["Match Joué"],
-            aggfunc="size",  # 'size' compte le nombre de lignes (matchs joués)
-            fill_value=0     # Remplace les cases vides (où le joueur n'a pas joué) par un 0
-        )
+            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) CORRIGÉ ---
+            st.markdown("---")
+            st.header("📊 Tableau Croisé Dynamique : Volume de Matchs")
+            st.write("Ce tableau comptabilise le volume de la colonne **Match Joué** par contexte.")
 
-        # 2. Affichage du TCD
-        if not tcd_comptage.empty:
-            st.subheader("📋 Matrice d'activité (Nombre de matchs)")
-            
-            # Affichage avec un joli dégradé bleu pour repérer les joueurs les plus actifs
-            st.dataframe(
-                tcd_comptage.style.background_gradient(cmap="Blues", axis=None), 
-                use_container_width=True
-            )
-        else:
-            st.info("Données insuffisantes pour générer ce tableau croisé.")
+            # On vérifie que la colonne "Match Joué" est bien présente dans le DataFrame
+            if "Match Joué" in df_resultat.columns:
+                
+                # Option 1 : Ton groupement précis (Equipe, Joueur, Année, Semaine en lignes)
+                # avec la colonne "Match Joué" comme valeur sommée
+                tcd_comptage = df_resultat.pivot_table(
+                    index=["Equipe1", "Joueur1", "Annee", "Semaine"],
+                    values="Match Joué",
+                    aggfunc="sum",  # Fait la somme des valeurs de la colonne "Match Joué"
+                    fill_value=0
+                )
+
+                # Affichage du TCD
+                if not tcd_comptage.empty:
+                    st.subheader("📋 Matrice d'activité (Somme de 'Match Joué')")
+                    st.dataframe(
+                        tcd_comptage.style.background_gradient(cmap="Blues", axis=0), 
+                        use_container_width=True
+                    )
+                else:
+                    st.info("Données insuffisantes pour générer ce tableau croisé.")
+            else:
+                st.error("La colonne 'Match Joué' n'a pas été trouvée dans les données renvoyées par Supabase.")
 
 except Exception as e:
     st.error("Une erreur technique est survenue.")
