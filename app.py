@@ -149,13 +149,18 @@ try:
                     
                     totaux_joueurs = totaux_joueurs.set_index(["ClassementJ1", "Division", "Semaine"], append=True)
                     
-                    # 3. FUSION UNIQUEMENT DE LA BASE ET DES TOTAUX JOUEURS (Ligne global Club retirée)
+                    # 3. FUSION DE LA BASE ET DES TOTAUX JOUEURS
                     tcd_bilan = pd.concat([tcd_base, totaux_joueurs])
                     
-                    # Tri pour placer le "TOTAL JOUEUR" en bas des semaines de son bloc respectif
-                    tcd_bilan = tcd_bilan.sort_index(level=["Equipe1", "Joueur1", "Semaine"])
+                    # 4. TRI PERSONNALISÉ POUR PROPULSER LE TOTAL AU-DESSUS DU DÉTAIL
+                    # On trie sur l'index 'Semaine' en appliquant une fonction lambda. 
+                    # Si la valeur est 'TOTAL JOUEUR', on renvoie une chaîne prioritaire ('0'), sinon on garde la semaine.
+                    tcd_bilan = tcd_bilan.sort_index(
+                        level=["Equipe1", "Joueur1", "Semaine"],
+                        key=lambda x: x.map(lambda val: "0" if val == "TOTAL JOUEUR" else str(val)) if x.name == "Semaine" else x
+                    )
                     
-                    # 4. CALCULS DES POURCENTAGES & RENOMMAGE DES COLONNES
+                    # 5. CALCULS DES POURCENTAGES & RENOMMAGE DES COLONNES
                     tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
                     tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires"]
 
@@ -188,7 +193,7 @@ try:
                         {"selector": "th, td", "props": [
                             ("padding", "8px !important")
                         ]},
-                        # Style en gras appliqué chirurgicalement aux lignes de totaux par joueur restantes
+                        # Style en gras appliqué aux lignes de totaux par joueur
                         {"selector": "tr:has(th:contains('TOTAL')), tr:has(td:contains('TOTAL'))", "props": [
                             ("font-weight", "bold !important"),
                             ("background-color", "#edf2f7 !important")
