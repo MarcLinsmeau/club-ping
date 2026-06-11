@@ -117,16 +117,16 @@ try:
             st.write("Ce tableau récapitule les statistiques complètes. Il s'affiche en entier sans barre de défilement.")
 
             # Vérification de la présence des colonnes requises pour le calcul
-            colonnes_requises = ["MatchNonFF", "Match Joué", "VictoireJ1"]
+            colonnes_requises = ["MatchNonFF", "Match", "VictoireJ1"]
             if all(col in df_resultat.columns for col in colonnes_requises):
                 
                 # 1. Pivot de table initial (Données de base par Semaine)
                 tcd_base = df_resultat.pivot_table(
                     index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
-                    values=["MatchNonFF", "Match Joué", "VictoireJ1"],
+                    values=["MatchNonFF", "Match", "VictoireJ1"],
                     aggfunc={
                         "MatchNonFF": "size",   
-                        "Match Joué": "sum",    
+                        "Match": "size",    
                         "VictoireJ1": "sum"     
                     },
                     fill_value=0
@@ -134,7 +134,7 @@ try:
 
                 if not tcd_base.empty:
                     # Reconstruction sécurisée pour l'ordre initial des colonnes
-                    colonnes_existantes = [c for c in ["MatchNonFF", "Match Joué", "VictoireJ1"] if c in tcd_base.columns]
+                    colonnes_existantes = [c for c in ["MatchNonFF", "Match", "VictoireJ1"] if c in tcd_base.columns]
                     tcd_base = tcd_base[colonnes_existantes]
                     
                     # 2. CALCUL DES SOUS-TOTAUX PAR JOUEUR
@@ -165,7 +165,7 @@ try:
                     tcd_bilan = tcd_bilan.sort_index(level=["Equipe1", "Joueur1", "Semaine"])
                     
                     # 5. CALCULS DES POURCENTAGES & RENOMMAGE DES COLONNES
-                    tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match Joué"]).fillna(0)) * 100
+                    tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
                     tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires"]
 
                     # Affichage final de la matrice de performance
