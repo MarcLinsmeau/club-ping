@@ -111,10 +111,10 @@ try:
             st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
 
 
-            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) SUR-MESURE ---
+            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) SANS AUCUN DEFILEMENT ---
             st.markdown("---")
             st.header("📊 Tableau Croisé Dynamique : Bilan des Joueurs")
-            st.write("Ce tableau récapitule les statistiques complètes (trié par équipe, joueur et semaine).")
+            st.write("Ce tableau récapitule les statistiques complètes. Il s'affiche en entier sans barre de défilement.")
 
             # Vérification de la présence des colonnes requises pour le calcul
             colonnes_requises = ["MatchNonFF", "Match Joué", "VictoireJ1"]
@@ -168,26 +168,10 @@ try:
                         axis=0
                     )
                     
-                    # --- CONFIGURATION CSS DE L'AFFICHAGE ---
-                    # vertical-align: top -> Aligne le texte en haut pour les lignes fusionnées de l'index (Equipe, Joueur)
-                    # border -> Force des bordures grises foncées bien visibles sur les entêtes (th) et cellules (td)
-                    style_css = """
-                    <style>
-                    table {
-                        border-collapse: collapse !important;
-                        width: 100%;
-                    }
-                    th, td {
-                        vertical-align: top !important;
-                        border: 1px solid #555555 !important;
-                        padding: 6px !important;
-                    }
-                    </style>
-                    """
-                    
-                    # Injection conjointe du CSS et du tableau HTML
-                    tableau_html = tcd_style.to_html(escape=False)
-                    st.write(style_css + tableau_html, unsafe_allow_html=True)
+                    # --- ASTUCE POUR UN TABLEAU ENTIER SANS BARRE DE DEFILEMENT ---
+                    # En injectant le style directement sous forme de tableau HTML brut via st.write,
+                    # le navigateur est obligé d'afficher le tableau sur toute sa hauteur, sans aucune restriction.
+                    st.write(tcd_style.to_html(escape=False), unsafe_allow_html=True)
                     
                 else:
                     st.info("Données insuffisantes pour générer ce tableau croisé.")
