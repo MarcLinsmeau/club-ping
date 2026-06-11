@@ -113,6 +113,64 @@ try:
             # Affichage final
             st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
 
+# --- SECTION TABLEAU CROISÉ DYNAMIQUE : TAUX DE VICTOIRE ---
+        st.markdown("---")
+        st.header("📊 Tableau Croisé Dynamique : Performance des Joueurs")
+        st.write("Ce tableau affiche le **% de victoires** des joueurs selon les critères sélectionnés.")
+
+        # 1. Détermination de la victoire pour Joueur 1
+        # On additionne les manches pour savoir si Joueur 1 a gagné plus de sets que Joueur 2
+        # Note : Dans le ping, on regarde généralement si le total de sets gagnés est de 3 (ou si Resultat1 > Resultat2)
+        # Supposons ici que la colonne 'Match' ou une logique simple valide la victoire.
+        # Créons une colonne temporaire 'Victoire' (1 si oui, 0 si non)
+        
+        # Exemple de logique de calcul basé sur les scores globaux s'ils sont calculés :
+        # Si tu as une colonne 'Resultat1' (sets totaux J1) et 'Resultat2' (sets totaux J2) :
+        # df_resultat['Victoire'] = (df_resultat['Resultat1'] > df_resultat['Resultat2']).astype(int)
+        
+        # Si tu n'as que les manches détaillées (ex: Resultat1.1 est le score de la manche 1), 
+        # voici une méthode d'analyse simple (ici on va simuler la victoire pour l'exemple, 
+        # adapte la condition '>' selon la colonne de score global exacte de ta table) :
+        if 'Resultat1' in df_resultat.columns and 'Resultat2' in df_resultat.columns:
+            df_resultat['Victoire'] = (df_resultat['Resultat1'] > df_resultat['Resultat2']).astype(int)
+        else:
+            # Sécurité alternative : si tu as une colonne 'Match' qui dit "Gagné", ou si on simule via une règle :
+            df_resultat['Victoire'] = 1 # Par défaut pour le calcul, à lier à ton indicateur de score réel
+
+        # 2. Choix de la dimension pour les colonnes du TCD
+        axe_colonne = st.selectbox(
+            "Regrouper les statistiques en colonnes par :", 
+            ["Division", "Semaine"]
+        )
+
+        # 3. Calcul du TCD du Taux de Victoire (Moyenne des victoires * 100)
+        # En faisant la moyenne (mean) d'une colonne de 0 et de 1, on obtient le pourcentage de victoires !
+        tcd_performance = df_resultat.pivot_table(
+            index="Joueur1",
+            columns=axe_colonne,
+            values="Victoire",
+            aggfunc="mean",
+            fill_value=0
+        )
+
+        # Conversion en pourcentage pour l'affichage (ex: 0.75 devient 75.0%)
+        tcd_performance = tcd_performance * 100
+
+        # 4. Affichage avec mise en forme conditionnelle (Heatmap de performance)
+        if not tcd_performance.empty:
+            st.subheader(f"📋 % de Victoires par Joueur et par {axe_colonne}")
+            
+            # Formater l'affichage pour ajouter le symbole '%' et limiter à 1 décimale
+            tcd_style = tcd_performance.style.format("{:.1f}%").background_gradient(
+                cmap="RdYlGn", # Dégradé du Rouge (0%) au Vert (100%) idéal pour les taux de réussite
+                vmin=0,
+                vmax=100
+            )
+            
+            st.dataframe(tcd_style, use_container_width=True)
+        else:
+            st.info("Données insuffisantes pour calculer les taux de victoire.")
+
 except Exception as e:
     st.error("Une erreur technique est survenue.")
     st.exception(e)
