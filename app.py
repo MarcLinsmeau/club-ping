@@ -111,35 +111,38 @@ try:
             st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
 
 
-            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) CORRIGÉ ---
+           # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) RE-STRUCTURÉ ---
             st.markdown("---")
-            st.header("📊 Tableau Croisé Dynamique : Volume de Matchs")
-            st.write("Ce tableau comptabilise le volume de la colonne **Match Joué** par contexte.")
+            st.header("📊 Tableau Croisé Dynamique : Analyse des Victoires")
+            st.write("Ce tableau affiche le total des victoires par Équipe, Joueur, Classement et Division.")
 
-            # On vérifie que la colonne "Match Joué" est bien présente dans le DataFrame
-            if "Match Joué" in df_resultat.columns:
+            # On vérifie que la colonne "VictoireJ1" est bien présente dans le DataFrame
+            if "VictoireJ1" in df_resultat.columns:
                 
-                # Option 1 : Ton groupement précis (Equipe, Joueur, Année, Semaine en lignes)
-                # avec la colonne "Match Joué" comme valeur sommée
-                tcd_comptage = df_resultat.pivot_table(
-                    index=["Equipe1", "Joueur1", "Annee", "Semaine"],
-                    values="Match Joué",
-                    aggfunc="sum",  # Fait la somme des valeurs de la colonne "Match Joué"
+                # Construction du TCD avec tes nouvelles dimensions en lignes
+                tcd_performance = df_resultat.pivot_table(
+                    index=["Equipe1", "Joueur1", "ClassementJ1", "Division"], # Toutes tes dimensions en lignes
+                    values="VictoireJ1",                                      # La métrique à analyser
+                    aggfunc="sum",                                            # On fait la somme des victoires
                     fill_value=0
                 )
 
+                # Optionnel : On renomme la colonne pour que ce soit plus joli à l'affichage
+                tcd_performance.columns = ["Total Victoires"]
+
                 # Affichage du TCD
-                if not tcd_comptage.empty:
-                    st.subheader("📋 Matrice d'activité (Somme de 'Match Joué')")
+                if not tcd_performance.empty:
+                    st.subheader("📋 Matrice des performances (Somme des Victoires)")
+                    
+                    # On utilise un dégradé Vert ("Greens") car on parle de victoires !
                     st.dataframe(
-                        tcd_comptage.style.background_gradient(cmap="Blues", axis=0), 
+                        tcd_performance.style.background_gradient(cmap="Greens", axis=0), 
                         use_container_width=True
                     )
                 else:
                     st.info("Données insuffisantes pour générer ce tableau croisé.")
             else:
-                st.error("La colonne 'Match Joué' n'a pas été trouvée dans les données renvoyées par Supabase.")
-
+                st.error("La colonne 'VictoireJ1' n'a pas été trouvée dans les données de Supabase.")
 except Exception as e:
     st.error("Une erreur technique est survenue.")
     st.exception(e)
