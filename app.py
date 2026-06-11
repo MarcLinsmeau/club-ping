@@ -166,11 +166,16 @@ try:
                         vmin=0,
                         vmax=100,
                         axis=0
-                    )
+                    ).set_table_styles([
+                        # Alignement vertical en haut pour toutes les cellules de données (td) et d'en-tête (th)
+                        {"selector": "td, th", "props": [("vertical-align", "top !important")]},
+                        # Quadrillage foncé bien marqué sur les bordures
+                        {"selector": "td, th", "props": [("border", "1px solid #555555 !important")]},
+                        # Petit confort de lecture additionnel (marges internes)
+                        {"selector": "td, th", "props": [("padding", "8px !important")]}
+                    ], overwrite=False) # False pour ne pas écraser les couleurs du dégradé
                     
-                    # --- ASTUCE POUR UN TABLEAU ENTIER SANS BARRE DE DEFILEMENT ---
-                    # En injectant le style directement sous forme de tableau HTML brut via st.write,
-                    # le navigateur est obligé d'afficher le tableau sur toute sa hauteur, sans aucune restriction.
+                    # Rendu HTML propre forcé sans défilement
                     st.write(tcd_style.to_html(escape=False), unsafe_allow_html=True)
                     
                 else:
