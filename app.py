@@ -10,14 +10,14 @@ try:
     conn = st.connection("supabase", type=SupabaseConnection)
 
     # 2. Récupération de toutes les données
-    reponse = conn.table("stats_ping").select("*").execute()
+    reponse = conn.table("test").select("*").execute()
     df = pd.DataFrame(reponse.data)
 
     # --- ZONE DE FILTRE ---
     st.subheader("🔍 Filtrer les statistiques")
 
     # On crée une liste propre avec "Tous les joueurs" + le nom de chaque joueur unique
-    liste_joueurs = ["Tous les joueurs"] + sorted(list(df["joueur"].unique()))
+    liste_joueurs = ["Tous les joueurs"] + sorted(list(df["Joueur1"].unique()))
     
     # On affiche la liste déroulante (le filtre)
     joueur_selectionne = st.selectbox("Sélectionnez un joueur :", liste_joueurs)
@@ -25,7 +25,7 @@ try:
     # On applique le filtre sur le tableau selon le choix de l'utilisateur
     if joueur_selectionne != "Tous les joueurs":
         # On ne garde que la ligne où le champ 'joueur' correspond au choix
-        df_filtre = df[df["joueur"] == joueur_selectionne]
+        df_filtre = df[df["Joueur1"] == joueur_selectionne]
     else:
         # Sinon, on garde tout le tableau
         df_filtre = df
