@@ -158,4 +158,25 @@ try:
                         "Sélections": "{:,.0f}",
                         "Matchs Joués": "{:,.0f}",
                         "Matchs Gagnés": "{:,.0f}",
-                        "%
+                        "% Victoires": "{:.1f}%"
+                    }).background_gradient(
+                        cmap="YlGnBu", 
+                        subset=["Sélections", "Matchs Joués", "Matchs Gagnés"], 
+                        axis=0
+                    ).background_gradient(
+                        cmap="RdYlGn", # Dégradé Rouge (0%) -> Jaune (50%) -> Vert (100%) pour le taux de victoire
+                        subset=["% Victoires"],
+                        vmin=0,
+                        vmax=100,
+                        axis=0
+                    )
+                    
+                    st.dataframe(tcd_style, use_container_width=True)
+                else:
+                    st.info("Données insuffisantes pour générer ce tableau croisé.")
+            else:
+                st.error("Une ou plusieurs colonnes de calcul ('MatchNonFF', 'Match Joué', 'VictoireJ1') sont introuvables.")
+                
+except Exception as e:
+    st.error("Une erreur technique est survenue lors de l'exécution de l'application.")
+    st.exception(e)
