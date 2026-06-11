@@ -122,16 +122,16 @@ try:
                 # Construction du TCD multi-index et multi-valeurs
                 tcd_bilan = df_resultat.pivot_table(
                     index=["Equipe1", "Joueur1", "ClassementJ1", "Semaine", "Division"], # Vos dimensions en lignes
-                    values=["Match Joué", "VictoireJ1"],                      # Les deux métriques à extraire
+                    values=["MatchNonFF", "Match Joué", "VictoireJ1"],                      # Les deux métriques à extraire
                     aggfunc="sum",                                            # Somme pour les deux
                     fill_value=0
                 )
 
                 # Optionnel : On réordonne les colonnes pour que "Match Joué" soit avant "VictoireJ1" (plus logique)
-                tcd_bilan = tcd_bilan[["Match Joué", "VictoireJ1"]]
+                tcd_bilan = tcd_bilan[["MatchNonFF", "Match Joué", "VictoireJ1"]]
                 
                 # Optionnel : On renomme les en-têtes pour un rendu plus propre à l'affichage
-                tcd_bilan.columns = ["Matchs Joués", "Matchs Gagnés"]
+                tcd_bilan.columns = ["Selections", "Matchs Joués", "Matchs Gagnés"]
 
                 # Affichage du TCD
                 if not tcd_bilan.empty:
