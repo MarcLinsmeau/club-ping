@@ -111,51 +111,51 @@ try:
             st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
 
 
-            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) SECURISEE ---
+            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) AVEC POURCENTAGE ---
             st.markdown("---")
             st.header("📊 Tableau Croisé Dynamique : Bilan des Joueurs")
-            st.write("Ce tableau récapitule le nombre de sélections (lignes), de matchs joués et de matchs gagnés.")
+            st.write("Ce tableau récapitule les sélections, l'activité, les victoires et le taux de réussite.")
 
             # Vérification de la présence des colonnes requises pour le calcul
             colonnes_requises = ["MatchNonFF", "Match Joué", "VictoireJ1"]
             if all(col in df_resultat.columns for col in colonnes_requises):
                 
-                # Pivot de table
+                # Pivot de table initial
                 tcd_bilan = df_resultat.pivot_table(
                     index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
                     values=["MatchNonFF", "Match Joué", "VictoireJ1"],
                     aggfunc={
-                        "MatchNonFF": "size",   # Compte le nombre total de lignes (sélections)
-                        "Match Joué": "sum",    # Fait la somme des matchs joués réels
-                        "VictoireJ1": "sum"     # Fait la somme des victoires
+                        "MatchNonFF": "size",   # Compte les sélections (lignes)
+                        "Match Joué": "sum",    # Somme des matchs joués
+                        "VictoireJ1": "sum"     # Somme des victoires
                     },
                     fill_value=0
                 )
 
                 if not tcd_bilan.empty:
-                    # Reconstruction sécurisée pour l'ordre des colonnes
+                    # Reconstruction sécurisée pour l'ordre initial des colonnes
                     colonnes_existantes = [c for c in ["MatchNonFF", "Match Joué", "VictoireJ1"] if c in tcd_bilan.columns]
                     tcd_bilan = tcd_bilan[colonnes_existantes]
                     
-                    # Dictionnaire de correspondance pour renommer proprement
-                    dictionnaire_noms = {
-                        "MatchNonFF": "Sélections (Taille)",
-                        "Match Joué": "Matchs Joués (Somme)",
-                        "VictoireJ1": "Matchs Gagnés (Somme)"
-                    }
-                    tcd_bilan.columns = [dictionnaire_noms[c] for c in tcd_bilan.columns]
+                    # --- CALCUL DU POURCENTAGE DE VICTOIRES ---
+                    # Pour éviter la division par zéro (si Match Joué = 0), on utilise .div() avec fill_value
+                    # Multiplié par 100 pour obtenir une valeur sur 100
+                    tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match Joué"]).fillna(0)) * 100
 
-                    # Affichage final de la matrice de performance avec dégradé
+                    # Application des noms propres pour les en-têtes du tableau
+                    tcd_bilan.columns = [
+                        "Sélections", 
+                        "Matchs Joués", 
+                        "Matchs Gagnés", 
+                        "% Victoires"
+                    ]
+
+                    # Affichage final de la matrice de performance avec formatage et dégradé
                     st.subheader("📋 Tableau de synthèse des performances")
-                    st.dataframe(
-                        tcd_bilan.style.background_gradient(cmap="YlGnBu", axis=0), 
-                        use_container_width=True
-                    )
-                else:
-                    st.info("Données insuffisantes pour générer ce tableau croisé.")
-            else:
-                st.error("Une ou plusieurs colonnes de calcul ('MatchNonFF', 'Match Joué', 'VictoireJ1') sont introuvables.")
-                
-except Exception as e:
-    st.error("Une erreur technique est survenue lors de l'exécution de l'application.")
-    st.exception(e)
+                    
+                    # On applique un formatage spécifique : pas de virgule pour les compteurs, 1 décimale et '%' pour le taux
+                    tcd_style = tcd_bilan.style.format({
+                        "Sélections": "{:,.0f}",
+                        "Matchs Joués": "{:,.0f}",
+                        "Matchs Gagnés": "{:,.0f}",
+                        "%
