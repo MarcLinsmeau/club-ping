@@ -3,16 +3,14 @@ import pandas as pd
 from st_supabase_connection import SupabaseConnection
 
 st.set_page_config(page_title="Ping Club - Matchs", page_icon="🏓", layout="wide")
-st.title("🏓 Historique et Détails des Matchs v2")
+st.title("🏓 Historique et Détails des Matchs")
 
 try:
     # 1. Connexion à Supabase
     conn = st.connection("supabase", type=SupabaseConnection)
 
-    # --- ÉTAPE UNIQUE POUR LES GRANDES BASES : RÉCUPÉRER LES ANNÉES SANS TOUT TÉLÉCHARGER ---
-    # On demande à Supabase de ne nous renvoyer QUE la colonne "Annee" distincte
-    # Cela évite le timeout car la réponse est ultra-légère.
-    @st.cache_data(ttl=600)  # On garde en mémoire 10 min pour que ce soit instantané
+    # --- ÉTAPE 1 : RÉCUPÉRER LES ANNÉES SANS TOUT TÉLÉCHARGER ---
+    @st.cache_data(ttl=600)
     def obtenir_annees_uniques():
         reponse_annees = conn.table("test").select("Annee").execute()
         df_annees = pd.DataFrame(reponse_annees.data)
@@ -22,38 +20,52 @@ try:
 
     liste_annees = obtenir_annees_uniques()
 
-    # --- ZONE DES FILTRES PRINCIPAUX ---
+    # --- ZONE DES FILTRES ---
     st.subheader("🔍 Filtrer les matchs")
-    col1, col2 = st.columns(2)
+    
+    # On crée 3 colonnes pour nos filtres principaux
+    f_col1, f_col2, f_col3 = st.columns(3)
 
-    with col1:
+    with f_col1:
         if liste_annees:
-            annee_choisie = st.selectbox("Sélectionnez une Année (Obligatoire pour éviter le timeout) :", liste_annees)
+            annee_choisie = st.selectbox("1. Sélectionnez une Année :", liste_annees)
         else:
             annee_choisie = None
-            st.warning("Aucune année trouvée dans la base.")
+            st.warning("Aucune année trouvée.")
 
-    with col2:
-        # Barre de recherche pour trouver un joueur
-        recherche_joueur = st.text_input("Rechercher un joueur (Nom) dans cette année :")
-
-    # --- ÉTAPE 2 : TÉLÉCHARGEMENT FILTRÉ À LA SOURCE ---
+    # --- ÉTAPE 2 : CHARGEMENT DU SOUS-ENSEMBLE DE L'ANNÉE ---
     if annee_choisie:
-        # Crucial : On ajoute .eq("Annee", annee_choisie) pour que Supabase fasse le tri LUI-MÊME
-        reponse = conn.table("test").select("*").eq("Annee", annee_choisie).execute()
-        df_filtre = pd.DataFrame(reponse.data)
+        # On télécharge UNIQUEMENT les matchs de l'année sélectionnée (Adieu le timeout !)
+        reponse_base = conn.table("test").select("*").eq("Annee", annee_choisie).execute()
+        df_annee = pd.DataFrame(reponse_base.data)
 
-        if df_filtre.empty:
+        if df_annee.empty:
             st.info(f"Aucun match trouvé pour l'année {annee_choisie}.")
         else:
-            # Application du filtre textuel du joueur en local sur le sous-ensemble de l'année
-            if recherche_joueur:
-                condition_j1 = df_filtre["Joueur1"].str.contains(recherche_joueur, case=False, na=False)
-                condition_j2 = df_filtre["Joueur2"].str.contains(recherche_joueur, case=False, na=False)
-                df_filtre = df_filtre[condition_j1 | condition_j2]
+            
+            with f_col2:
+                # Liste unique des Clubs (Equipe1) pour cette année spécifique
+                liste_clubs = ["Tous les clubs"] + sorted(list(df_annee["Equipe1"].dropna().unique()))
+                club_choisi = st.selectbox("2. Filtrer par Club (Equipe 1) :", liste_clubs)
+
+            with f_col3:
+                # Liste unique des Joueurs (Joueur1) pour cette année spécifique
+                liste_joueurs = ["Tous les joueurs"] + sorted(list(df_annee["Joueur1"].dropna().unique()))
+                joueur_choisi = st.selectbox("3. Filtrer par Joueur (Joueur 1) :", liste_joueurs)
+
+            # --- APPLICATION DES FILTRES EN LOCAL ---
+            df_filtre = df_annee.copy()
+
+            # Filtre Club (Equipe1)
+            if club_choisi != "Tous les clubs":
+                df_filtre = df_filtre[df_filtre["Equipe1"] == club_choisi]
+
+            # Filtre Joueur (Joueur1)
+            if joueur_choisi != "Tous les joueurs":
+                df_filtre = df_filtre[df_filtre["Joueur1"] == joueur_choisi]
 
             # --- AFFICHAGE DU TABLEAU DES MATCHS ---
-            st.subheader(f"📊 Liste des matchs de l'année {annee_choisie} ({len(df_filtre)} match(s) affiché(s))")
+            st.subheader(f"📊 Résultats ({len(df_filtre)} match(s) affiché(s))")
             
             colonnes_affichage = [
                 "id", "Annee", "Division", "Semaine", "Match", 
@@ -62,16 +74,16 @@ try:
             ]
             st.dataframe(df_filtre[colonnes_affichage], use_container_width=True, hide_index=True)
 
-            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) POUR JOUEUR 1 ---
+            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) ---
             st.markdown("---")
             st.header("📊 Tableau Croisé Dynamique (Joueur 1 uniquement)")
-            st.write(f"Analyse croisée basée uniquement sur l'année {annee_choisie}.")
+            st.write("Analyse croisée basée sur votre sélection ci-dessus.")
 
             col_tcd1, col_tcd2 = st.columns(2)
             with col_tcd1:
                 element_colonne = st.selectbox(
                     "Que voulez-vous afficher en colonnes ?",
-                    ["Division", "Semaine"] # Enlevé 'Annee' car elle est déjà fixée par le filtre principal
+                    ["Division", "Semaine"]
                 )
             with col_tcd2:
                 type_calcul = st.selectbox(
@@ -79,7 +91,7 @@ try:
                     ["Nombre de matchs joués", "Total des sets marqués (Resultat1)"]
                 )
 
-            # Calcul du TCD via Pandas
+            # Calcul du TCD
             if type_calcul == "Nombre de matchs joués":
                 tcd_joueur1 = df_filtre.pivot_table(
                     index="Joueur1", 
@@ -96,7 +108,7 @@ try:
                     fill_value=0
                 )
 
-            # Affichage du TCD style Excel
+            # Affichage du TCD
             st.subheader(f"📋 Tableau : Joueur 1 (Lignes) vs {element_colonne} (Colonnes)")
             if not tcd_joueur1.empty:
                 st.dataframe(
@@ -104,7 +116,7 @@ try:
                     use_container_width=True
                 )
             else:
-                st.info("Pas assez de données pour générer le tableau croisé.")
+                st.info("Pas assez de données pour générer le tableau croisé avec ces filtres.")
 
 except Exception as e:
     st.error("Une erreur est survenue lors du chargement des données.")
