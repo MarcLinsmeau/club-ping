@@ -123,7 +123,7 @@ try:
         # 'columns=[...]' crée les sous-groupements en colonnes (Année > Semaine)
         tcd_comptage = df_resultat.pivot_table(
             index=["Equipe1", "Joueur1", "Annee", "Semaine"],
-            columns=[],
+            columns=["Match Joué"],
             aggfunc="size",  # 'size' compte le nombre de lignes (matchs joués)
             fill_value=0     # Remplace les cases vides (où le joueur n'a pas joué) par un 0
         )
