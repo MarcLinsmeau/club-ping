@@ -30,16 +30,17 @@ try:
     st.subheader("🔍 Filtres de sélection")
     col1, col2, col3 = st.columns(3)
 
-    # 1. FILTRE ANNÉE
+    # 1. FILTRE ANNÉE (Toujours actif au démarrage)
     liste_annees = charger_annees()
     options_annees = ["--- Choisir une année ---"] + liste_annees
 
     with col1:
         annee_choisie = st.selectbox("1. Année :", options_annees, index=0)
 
+    # Détermination du statut du filtre Club
     annee_valide = annee_choisie != "--- Choisir une année ---"
 
-    # 2. FILTRE CLUB
+    # 2. FILTRE CLUB (Verrouillé tant qu'une année n'est pas choisie)
     if annee_valide:
         liste_clubs = charger_clubs(annee_choisie)
         options_clubs = ["--- Choisir un club ---"] + liste_clubs
@@ -56,9 +57,10 @@ try:
             disabled=desactiver_club
         )
 
+    # Détermination du statut du filtre Joueur
     club_valide = annee_valide and club_choisi != "--- Choisir un club ---" and club_choisi != "Veuillez d'abord choisir une année"
 
-    # 3. FILTRE JOUEUR
+    # 3. FILTRE JOUEUR (Verrouillé tant qu'un club n'est pas choisi)
     if club_valide:
         liste_joueurs = charger_joueurs(annee_choisie, club_choisi)
         options_joueurs = ["Tous les joueurs"] + liste_joueurs
@@ -95,6 +97,7 @@ try:
         else:
             st.subheader(f"📋 Records trouvés ({len(df_resultat)} match(s))")
             
+            # Réorganisation des colonnes d'affichage selon ton schéma SQL
             colonnes_ordonnees = [
                 "id", "Annee", "Division", "Semaine", "Match", 
                 "Equipe1", "Joueur1", "ClassementJ1", "ClassJ1New", "PointsJ1",
@@ -104,42 +107,54 @@ try:
             ]
             colonnes_visibles = [col for col in colonnes_ordonnees if col in df_resultat.columns]
             
+            # Affichage du tableau de données brutes
             st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
 
 
-            # --- SECTION TABLEAU CROISÉ DYNAMIQUE CORRIGÉ ---
+            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) SUR-MESURE ---
             st.markdown("---")
             st.header("📊 Tableau Croisé Dynamique : Bilan des Joueurs")
-            st.write("Ce tableau récapitule les statistiques complètes avec groupement d'index préservé.")
+            st.write("Ce tableau récapitule les statistiques complètes (trié par équipe, joueur et semaine).")
 
+            # Vérification de la présence des colonnes requises pour le calcul
             colonnes_requises = ["MatchNonFF", "Match Joué", "VictoireJ1"]
             if all(col in df_resultat.columns for col in colonnes_requises):
                 
-                # 1. Création du Pivot de table pur (conserve la structure de l'index de groupe)
+                # Pivot de table initial
                 tcd_bilan = df_resultat.pivot_table(
                     index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
                     values=["MatchNonFF", "Match Joué", "VictoireJ1"],
                     aggfunc={
-                        "MatchNonFF": "size",   
-                        "Match Joué": "sum",    
-                        "VictoireJ1": "sum"     
+                        "MatchNonFF": "size",   # Compte les sélections (lignes)
+                        "Match Joué": "sum",    # Somme des matchs joués
+                        "VictoireJ1": "sum"     # Somme des victoires
                     },
                     fill_value=0
                 )
 
                 if not tcd_bilan.empty:
-                    # Tri et réorganisation des colonnes natives
+                    # Reconstruction sécurisée pour l'ordre initial des colonnes
                     colonnes_existantes = [c for c in ["MatchNonFF", "Match Joué", "VictoireJ1"] if c in tcd_bilan.columns]
                     tcd_bilan = tcd_bilan[colonnes_existantes]
                     
                     # Calcul du pourcentage de victoires
-                    tcd_bilan["% Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match Joué"]).fillna(0)) * 100
+                    tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match Joué"]).fillna(0)) * 100
 
-                    # Application des noms propres pour les colonnes
-                    tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires"]
+                    # Application des noms propres pour les en-têtes du tableau
+                    tcd_bilan.columns = [
+                        "Sélections", 
+                        "Matchs Joués", 
+                        "Matchs Gagnés", 
+                        "% Victoires"
+                    ]
+
+                    # Tri du tableau par Équipe, Joueur puis Semaine
                     tcd_bilan = tcd_bilan.sort_values(by=["Equipe1", "Joueur1", "Semaine"], ascending=True)
 
-                    # 2. Utilisation du Styler de Pandas (Pour garder le dégradé SANS casser le code texte)
+                    # Affichage final de la matrice de performance
+                    st.subheader("📋 Tableau de synthèse des performances")
+                    
+                    # Application du style Pandas (dégradé unique sur % Victoires)
                     tcd_style = tcd_bilan.style.format({
                         "Sélections": "{:,.0f}",
                         "Matchs Joués": "{:,.0f}",
@@ -152,35 +167,27 @@ try:
                         vmax=100,
                         axis=0
                     )
-
-                    # 3. INJECTION DU CSS GLOBAL DU TABLEAU
-                    # Cette astuce applique le quadrillage foncé et l'alignement vertical en haut
-                    # sur n'importe quel tableau HTML généré par le style de Pandas, résolvant tous les bugs.
-                    style_override_css = """
+                    
+                    # --- CONFIGURATION CSS DE L'AFFICHAGE ---
+                    # vertical-align: top -> Aligne le texte en haut pour les lignes fusionnées de l'index (Equipe, Joueur)
+                    # border -> Force des bordures grises foncées bien visibles sur les entêtes (th) et cellules (td)
+                    style_css = """
                     <style>
-                    /* Cible toutes les cellules de données et d'index du tableau */
-                    .element-container table, table {
+                    table {
                         border-collapse: collapse !important;
-                        width: 100% !important;
+                        width: 100%;
                     }
-                    th, td, .level0, .row_heading, .index_name {
+                    th, td {
                         vertical-align: top !important;
                         border: 1px solid #555555 !important;
-                        padding: 8px !important;
-                    }
-                    /* Forcer la couleur du texte à rester lisible selon le fond du dégradé de Pandas */
-                    td.col3 {
-                        font-weight: bold !important;
+                        padding: 6px !important;
                     }
                     </style>
                     """
-
-                    # Récupération du HTML natif généré par le Styler (conserve les fusions de cellules)
-                    tableau_html = tcd_style.to_html()
-
-                    # Rendu final
-                    st.subheader("📋 Tableau de synthèse des performances")
-                    st.write(style_override_css + tableau_html, unsafe_allow_html=True)
+                    
+                    # Injection conjointe du CSS et du tableau HTML
+                    tableau_html = tcd_style.to_html(escape=False)
+                    st.write(style_css + tableau_html, unsafe_allow_html=True)
                     
                 else:
                     st.info("Données insuffisantes pour générer ce tableau croisé.")
