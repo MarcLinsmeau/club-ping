@@ -9,35 +9,52 @@ try:
     # 1. Connexion à Supabase
     conn = st.connection("supabase", type=SupabaseConnection)
 
-   # --- CHARGEMENT DES FILTRES VIA RPC ---
+    # --- CHARGEMENT UNIQUE ET RAPIDE DES CRITÈRES VIA RPC ---
     @st.cache_data(ttl=600)
     def charger_filtres_uniques():
-        # ATTENTION : On utilise conn.client.rpc au lieu de conn.rpc
         reponse_rpc = conn.client.rpc("obtenir_filtres_uniques").execute()
         donnees = reponse_rpc.data
         
-        # On extrait en toute sécurité les listes uniques calculées par Supabase
         annees = sorted([str(a) for a in donnees.get("annees", [])])
         clubs = sorted(donnees.get("clubs", []))
         joueurs = sorted(donnees.get("joueurs", []))
         
         return annees, clubs, joueurs
 
-    # Récupération des 3 listes uniques d'un coup
     liste_annees, liste_clubs, liste_joueurs = charger_filtres_uniques()
+
+    # --- PRÉPARATION DES LISTES POUR LES DROPDOWNS ---
+    options_annees = ["Toutes"] + liste_annees
+    options_clubs = ["Tous les clubs"] + liste_clubs
+    options_joueurs = ["Tous les joueurs"] + liste_joueurs
+
+    # --- DÉFINITION DES VALEURS PAR DÉFAUT ---
+    # 1. Pour l'année : on veut la plus récente (la dernière de la liste triée)
+    if liste_annees:
+        annee_par_defaut = liste_annees[-1]  # Prend la dernière année (ex: 2026)
+        index_annee = options_annees.index(annee_par_defaut)
+    else:
+        index_annee = 0
+
+    # 2. Pour le club ou le joueur (Optionnel)
+    # Si tu veux imposer un club par défaut (ex: "Mon Club"), tu cherches son index :
+    # index_club = options_clubs.index("Mon Club") if "Mon Club" in options_clubs else 0
+    index_club = 0  # Laisse sur "Tous les clubs" par défaut
+    index_joueur = 0 # Laisse sur "Tous les joueurs" par défaut
+
     # --- ZONE DES FILTRES ---
     st.subheader("🔍 Critères de recherche")
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        annee_choisie = st.selectbox("Année :", ["Toutes"] + [str(a) for a in liste_annees])
+        # On applique 'index=index_annee' pour forcer la valeur par défaut
+        annee_choisie = st.selectbox("Année :", options_annees, index=index_annee)
     with col2:
-        club_choisi = st.selectbox("Club (Equipe 1) :", ["Tous les clubs"] + liste_clubs)
+        club_choisi = st.selectbox("Club (Equipe 1) :", options_clubs, index=index_club)
     with col3:
-        joueur_choisi = st.selectbox("Joueur (Joueur 1) :", ["Tous les joueurs"] + liste_joueurs)
+        joueur_choisi = st.selectbox("Joueur (Joueur 1) :", options_joueurs, index=index_joueur)
 
     # --- CONSTRUIRE LA REQUÊTE SUPABASE SUR MESURE ---
-    # C'est l'astuce : on prépare la requête en fonction des choix de l'utilisateur
     requete = conn.table("test").select("*")
 
     if annee_choisie != "Toutes":
@@ -50,7 +67,6 @@ try:
         requete = requete.eq("Joueur1", joueur_choisi)
 
     # --- EXÉCUTION ET AFFICHAGE ---
-    # On limite à 5000 lignes max pour l'affichage de sécurité si aucun filtre n'est mis
     reponse = requete.limit(5000).execute()
     df_filtre = pd.DataFrame(reponse.data)
 
@@ -66,13 +82,12 @@ try:
         ]
         st.dataframe(df_filtre[colonnes_affichage], use_container_width=True, hide_index=True)
 
-        # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) ---
+        # --- SECTION TABLEAU CROISÉ DYNAMIQUE ---
         st.markdown("---")
         st.header("📊 Tableau Croisé Dynamique")
         
         element_colonne = st.selectbox("Afficher en colonnes du TCD :", ["Division", "Semaine"])
 
-        # Calcul rapide du TCD sur les données affichées
         tcd_joueur1 = df_filtre.pivot_table(
             index="Joueur1", 
             columns=element_colonne, 
