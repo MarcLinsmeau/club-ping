@@ -10,7 +10,7 @@ try:
     conn = st.connection("supabase", type=SupabaseConnection)
 
     # 2. Récupération de toutes les lignes de la table 'test'
-    reponse = conn.table("test").select("*").execute()
+    reponse = conn.table("test2").select("*").execute()
     df = pd.DataFrame(reponse.data)
 
     if df.empty:
