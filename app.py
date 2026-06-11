@@ -81,4 +81,3 @@ try:
     # --- ENCLENCHEMENT DE LA REQUÊTE ET AFFICHAGE ---
     if not annee_valide:
         st.info("💡 En att
-                
