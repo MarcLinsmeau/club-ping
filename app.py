@@ -111,38 +111,42 @@ try:
             st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
 
 
-           # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) RE-STRUCTURÉ ---
+          # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) : MATCHS & VICTOIRES ---
             st.markdown("---")
-            st.header("📊 Tableau Croisé Dynamique : Analyse des Victoires")
-            st.write("Ce tableau affiche le total des victoires par Équipe, Joueur, Classement et Division.")
+            st.header("📊 Tableau Croisé Dynamique : Bilan des Joueurs")
+            st.write("Ce tableau récapitule le nombre total de **matchs joués** et de **matchs gagnés**.")
 
-            # On vérifie que la colonne "VictoireJ1" est bien présente dans le DataFrame
-            if "VictoireJ1" in df_resultat.columns:
+            # On vérifie que les deux colonnes nécessaires existent dans le DataFrame
+            if "Match Joué" in df_resultat.columns and "VictoireJ1" in df_resultat.columns:
                 
-                # Construction du TCD avec tes nouvelles dimensions en lignes
-                tcd_performance = df_resultat.pivot_table(
-                    index=["Equipe1", "Joueur1", "ClassementJ1", "Division"], # Toutes tes dimensions en lignes
-                    values=["Match Joué", "VictoireJ1"],                                      # La métrique à analyser
-                    aggfunc="sum",                                            # On fait la somme des victoires
+                # Construction du TCD multi-index et multi-valeurs
+                tcd_bilan = df_resultat.pivot_table(
+                    index=["Equipe1", "Joueur1", "ClassementJ1", "Division"], # Vos dimensions en lignes
+                    values=["Match Joué", "VictoireJ1"],                      # Les deux métriques à extraire
+                    aggfunc="sum",                                            # Somme pour les deux
                     fill_value=0
                 )
 
-                # Optionnel : On renomme la colonne pour que ce soit plus joli à l'affichage
-                tcd_performance.columns = ["Total Victoires"]
+                # Optionnel : On réordonne les colonnes pour que "Match Joué" soit avant "VictoireJ1" (plus logique)
+                tcd_bilan = tcd_bilan[["Match Joué", "VictoireJ1"]]
+                
+                # Optionnel : On renomme les en-têtes pour un rendu plus propre à l'affichage
+                tcd_bilan.columns = ["Matchs Joués", "Matchs Gagnés"]
 
                 # Affichage du TCD
-                if not tcd_performance.empty:
-                    st.subheader("📋 Matrice des performances (Somme des Victoires)")
+                if not tcd_bilan.empty:
+                    st.subheader("📋 Tableau de synthèse des performances")
                     
-                    # On utilise un dégradé Vert ("Greens") car on parle de victoires !
+                    # On applique un dégradé subtil par colonne pour ne pas mélanger les volumes de matchs et de victoires
                     st.dataframe(
-                        tcd_performance.style.background_gradient(cmap="Greens", axis=0), 
+                        tcd_bilan.style.background_gradient(cmap="YlGnBu", axis=0), 
                         use_container_width=True
                     )
                 else:
                     st.info("Données insuffisantes pour générer ce tableau croisé.")
             else:
-                st.error("La colonne 'VictoireJ1' n'a pas été trouvée dans les données de Supabase.")
+                st.error("Les colonnes 'Match Joué' ou 'VictoireJ1' sont introuvables dans la table Supabase.")
+                
 except Exception as e:
     st.error("Une erreur technique est survenue.")
     st.exception(e)
