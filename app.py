@@ -55,50 +55,50 @@ try:
         # On affiche le tableau avec les colonnes bien ordonnées
         st.dataframe(df_filtre[colonnes_affichage], use_container_width=True, hide_index=True)
 
-# --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) ---
+# --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) POUR JOUEUR 1 ---
         st.markdown("---") # Une ligne de séparation visuelle
-        st.header("📊 Analyse Croisée des Matchs (TCD)")
-        st.write("Ce tableau croisé montre le nombre de matchs joués entre les joueurs.")
+        st.header("📊 Tableau Croisé Dynamique (Joueur 1 uniquement)")
+        st.write("Analysez les statistiques des joueurs lorsqu'ils sont positionnés en Joueur 1.")
 
-        # 1. Configuration du TCD par l'utilisateur
+        # 1. Choix de la colonne pour le TCD
         col_tcd1, col_tcd2 = st.columns(2)
         with col_tcd1:
-            option_donnee = st.selectbox(
-                "Quelle donnée afficher dans les cases ?",
-                ["Nombre de matchs joués", "Total des sets marqués par Joueur 1"]
+            element_colonne = st.selectbox(
+                "Que voulez-vous afficher en colonnes ?",
+                ["Division", "Annee", "Semaine"]
             )
         with col_tcd2:
-            Couleur_tcd = st.selectbox("Couleur du tableau :", ["Bleu", "Vert", "Pourpre"])
+            type_calcul = st.selectbox(
+                "Quelle statistique calculer ?",
+                ["Nombre de matchs joués", "Total des sets marqués (Resultat1)"]
+            )
 
-        # Correspondance des couleurs pour le style Excel
-        choix_cmap = {"Bleu": "Blues", "Vert": "Greens", "Pourpre": "Purples"}
-
-        # 2. Calcul du TCD via Pandas selon le choix
-        if option_donnee == "Nombre de matchs joués":
-            # On crée le TCD en comptant le nombre de lignes (de matchs) pour chaque joueur
-            tcd_df = df_filtre.pivot_table(
+        # 2. Calcul du TCD via Pandas
+        if type_calcul == "Nombre de matchs joués":
+            # On compte le nombre de matchs (lignes) pour chaque Joueur1 selon l'élément choisi
+            tcd_joueur1 = df_filtre.pivot_table(
                 index="Joueur1", 
-                columns="Joueur2", 
-                aggfunc="size", # 'size' compte les lignes
+                columns=element_colonne, 
+                aggfunc="size", 
                 fill_value=0
             )
         else:
-            # On crée le TCD en faisant la somme de la colonne 'Resultat1'
-            tcd_df = df_filtre.pivot_table(
+            # On fait la somme des sets marqués (Resultat1) par chaque Joueur1
+            tcd_joueur1 = df_filtre.pivot_table(
                 index="Joueur1", 
-                columns="Joueur2", 
+                columns=element_colonne, 
                 values="Resultat1",
-                aggfunc="sum", # 'sum' fait le total
+                aggfunc="sum", 
                 fill_value=0
             )
 
-        # 3. Affichage du TCD avec un style "Heatmap" (dégradé de couleur)
-        st.subheader("📋 Matrice Joueur 1 (Lignes) vs Joueur 2 (Colonnes)")
+        # 3. Affichage du TCD style Excel
+        st.subheader(f"📋 Tableau : Joueur 1 (Lignes) vs {element_colonne} (Colonnes)")
         
-        if not tcd_df.empty:
-            # On applique une couleur de fond dynamique comme sur Excel
+        if not tcd_joueur1.empty:
+            # Affichage avec un joli dégradé bleu pour repérer les grosses valeurs
             st.dataframe(
-                tcd_df.style.background_gradient(cmap=choix_cmap[Couleur_tcd]), 
+                tcd_joueur1.style.background_gradient(cmap="Blues"), 
                 use_container_width=True
             )
         else:
