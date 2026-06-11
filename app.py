@@ -120,7 +120,7 @@ try:
             colonnes_requises = ["MatchNonFF", "Match Joué", "VictoireJ1"]
             if all(col in df_resultat.columns for col in colonnes_requises):
                 
-                # Pivot de table initial
+                # Pivot de table initial AVEC les marges de totaux activées (margins=True)
                 tcd_bilan = df_resultat.pivot_table(
                     index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
                     values=["MatchNonFF", "Match Joué", "VictoireJ1"],
@@ -129,7 +129,9 @@ try:
                         "Match Joué": "sum",    # Somme des matchs joués
                         "VictoireJ1": "sum"     # Somme des victoires
                     },
-                    fill_value=0
+                    fill_value=0,
+                    margins=True,               # Active la ligne de TOTAL global automatique
+                    margins_name="TOTAL"        # Renomme la ligne "All" par "TOTAL"
                 )
 
                 if not tcd_bilan.empty:
@@ -137,7 +139,7 @@ try:
                     colonnes_existantes = [c for c in ["MatchNonFF", "Match Joué", "VictoireJ1"] if c in tcd_bilan.columns]
                     tcd_bilan = tcd_bilan[colonnes_existantes]
                     
-                    # Calcul du pourcentage de victoires
+                    # Recalcul dynamique et propre du pourcentage de victoires (y compris pour la ligne TOTAL)
                     tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match Joué"]).fillna(0)) * 100
 
                     # Application des noms propres pour les en-têtes du tableau
@@ -148,8 +150,14 @@ try:
                         "% Victoires"
                     ]
 
-                    # Tri du tableau par Équipe, Joueur puis Semaine
-                    tcd_bilan = tcd_bilan.sort_values(by=["Equipe1", "Joueur1", "Semaine"], ascending=True)
+                    # Tri des valeurs en excluant la ligne globale 'TOTAL' pour qu'elle reste tout en bas
+                    if "TOTAL" in tcd_bilan.index.get_level_values(0):
+                        ligne_total = tcd_bilan.xs("TOTAL", level=0, drop_level=False)
+                        tcd_sans_total = tcd_bilan.drop("TOTAL", level=0)
+                        tcd_sans_total = tcd_sans_total.sort_values(by=["Equipe1", "Joueur1", "Semaine"], ascending=True)
+                        tcd_bilan = pd.concat([tcd_sans_total, ligne_total])
+                    else:
+                        tcd_bilan = tcd_bilan.sort_values(by=["Equipe1", "Joueur1", "Semaine"], ascending=True)
 
                     # Affichage final de la matrice de performance
                     st.subheader("📋 Tableau de synthèse des performances")
@@ -167,18 +175,24 @@ try:
                         vmax=100,
                         axis=0
                     ).set_table_styles([
-                        # Ciblage ultra-complet de toutes les variantes de cellules générées par le moteur html de pandas
+                        # Ciblage complet de toutes les cellules standards
                         {"selector": "th, td, th.row_heading, th.col_heading, td.data, .blank", "props": [
                             ("vertical-align", "top !important"),
                             ("text-align", "left !important")
                         ]},
-                        # Forçage du quadrillage foncé identique partout pour une structure géométrique nette
+                        # Forçage du quadrillage foncé
                         {"selector": "th, td, th.row_heading, th.col_heading, td.data", "props": [
                             ("border", "1px solid #555555 !important")
                         ]},
-                        # Marges de confort pour aérer le texte aligné à gauche
+                        # Marges de confort
                         {"selector": "th, td", "props": [
                             ("padding", "8px !important")
+                        ]},
+                        # --- INJECTION CSS POUR LE STYLE EN GRAS DE LA LIGNE TOTAL ---
+                        # On repère l'élément contenant le texte 'TOTAL' et on met toute sa ligne en gras
+                        {"selector": "tr:has(th:contains('TOTAL')), tr:has(td:contains('TOTAL'))", "props": [
+                            ("font-weight", "bold !important"),
+                            ("background-color", "#f0f2f6 !important") # Légère teinte grise pour détacher le bloc
                         ]}
                     ], overwrite=False)
                     
