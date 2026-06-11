@@ -80,4 +80,76 @@ try:
 
     # --- ENCLENCHEMENT DE LA REQUÊTE ET AFFICHAGE ---
     if not annee_valide:
-        st.info("💡 En att
+        st.info("💡 En attente de vos critères : Veuillez sélectionner une **Année** pour commencer.")
+    elif not club_valide:
+        st.info("💡 Étape suivante : Veuillez sélectionner un **Club** pour charger les matchs correspondants.")
+    else:
+        requete = conn.table("test").select("*").eq("Annee", annee_choisie).eq("Equipe1", club_choisi)
+
+        if joueur_choisi != "Tous les joueurs":
+            requete = requete.eq("Joueur1", joueur_choisi)
+
+        reponse = requete.limit(5000).execute()
+        df_resultat = pd.DataFrame(reponse.data)
+
+        if df_resultat.empty:
+            st.warning("⚠️ Aucun record trouvé pour cette combinaison précise.")
+        else:
+            st.subheader(f"📋 Records trouvés ({len(df_resultat)} match(s))")
+            
+            # Réorganisation des colonnes d'affichage selon ton nouveau schéma SQL
+            colonnes_ordonnees = [
+                "id", "Annee", "Division", "Semaine", "Match", 
+                "Equipe1", "Joueur1", "ClassementJ1", "ClassJ1New", "PointsJ1",
+                "Resultat1.1", "Resultat1.2", "Resultat2.1", "Resultat2.2", 
+                "ClassementJ2", "ClassJ2New", "Joueur2", "Equipe2", 
+                "VictoireJ1", "VictoireJ2", "Match Joué", "MatchNonFF"
+            ]
+            colonnes_visibles = [col for col in colonnes_ordonnees if col in df_resultat.columns]
+            
+            # Affichage du tableau de données brutes
+            st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
+
+
+            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) : SÉLECTIONS & PERFORMANCE ---
+            st.markdown("---")
+            st.header("📊 Tableau Croisé Dynamique : Bilan des Joueurs")
+            st.write("Ce tableau récapitule le nombre de sélections (lignes), de matchs joués et de matchs gagnés.")
+
+            # Vérification de la présence des colonnes requises pour le calcul
+            colonnes_requises = ["MatchNonFF", "Match Joué", "VictoireJ1"]
+            if all(col in df_resultat.columns for col in colonnes_requises):
+                
+                # Pivot de table avec index hiérarchique et fonctions d'agrégation mixtes
+                tcd_bilan = df_resultat.pivot_table(
+                    index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
+                    values=["MatchNonFF", "Match Joué", "VictoireJ1"],
+                    aggfunc={
+                        "MatchNonFF": "size",   # Compte le nombre total de lignes (sélections)
+                        "Match Joué": "sum",    # Fait la somme des matchs joués réels
+                        "VictoireJ1": "sum"     # Fait la somme des victoires
+                    },
+                    fill_value=0
+                )
+
+                # Réorganisation visuelle des colonnes de gauche à droite
+                tcd_bilan = tcd_bilan[["MatchNonFF", "Match Joué", "VictoireJ1"]]
+                
+                # Renommer les en-têtes pour l'affichage final
+                tcd_bilan.columns = ["Sélections (Taille)", "Matchs Joués (Somme)", "Matchs Gagnés (Somme)"]
+
+                # Rendu final avec dégradé de couleur progressif
+                if not tcd_bilan.empty:
+                    st.subheader("📋 Tableau de synthèse des performances")
+                    st.dataframe(
+                        tcd_bilan.style.background_gradient(cmap="YlGnBu", axis=0), 
+                        use_container_width=True
+                    )
+                else:
+                    st.info("Données insuffisantes pour générer ce tableau croisé.")
+            else:
+                st.error("Une ou plusieurs colonnes de calcul ('MatchNonFF', 'Match Joué', 'VictoireJ1') sont introuvables.")
+                
+except Exception as e:
+    st.error("Une erreur technique est survenue lors de l'exécution de l'application.")
+    st.exception(e)
