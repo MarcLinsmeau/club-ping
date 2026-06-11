@@ -9,7 +9,7 @@ try:
     # 1. Connexion à Supabase
     conn = st.connection("supabase", type=SupabaseConnection)
 
-    # --- FONCTIONS D'APPEL DES RPC (VALEURS UNIQUES EN CASCADE) ---
+    # --- FONCTIONS D'APPEL DES RPC (VALEURS UNIQUES EN CASCADE) ----
     @st.cache_data(ttl=300)
     def charger_annees():
         res = conn.client.rpc("obtenir_annees_uniques").execute()
