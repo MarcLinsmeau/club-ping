@@ -3,7 +3,7 @@ import pandas as pd
 from st_supabase_connection import SupabaseConnection
 
 st.set_page_config(page_title="Ping Club - Matchs", page_icon="🏓", layout="wide")
-st.title("🏓 Historique et Détails des Matchs")
+st.title("🏓 Historique et Détails des Matchs v2")
 
 try:
     # 1. Connexion à Supabase
