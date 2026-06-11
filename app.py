@@ -65,8 +65,8 @@ try:
         
         colonnes_affichage = [
             "id", "Annee", "Division", "Semaine", "Match", 
-            "Equipe1", "Joueur1", "ClassementJ1", "Resultat1",
-            "Resultat2", "ClassementJ2", "Joueur2", "Equipe2"
+            "Equipe1", "Joueur1", "ClassementJ1", "Resultat1.1",
+            "Resultat2.1", "ClassementJ2", "Joueur2", "Equipe2"
         ]
         st.dataframe(df_filtre[colonnes_affichage], use_container_width=True, hide_index=True)
 
