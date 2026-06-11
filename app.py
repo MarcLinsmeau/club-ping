@@ -107,15 +107,15 @@ try:
             st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
 
 
-            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) REVISITÉ ---
+            # --- SECTION TABLEAU CROISÉ DYNAMIQUE CORRIGÉ ---
             st.markdown("---")
             st.header("📊 Tableau Croisé Dynamique : Bilan des Joueurs")
-            st.write("Ce tableau récapitule les statistiques complètes (trié par équipe, joueur et semaine).")
+            st.write("Ce tableau récapitule les statistiques complètes avec groupement d'index préservé.")
 
             colonnes_requises = ["MatchNonFF", "Match Joué", "VictoireJ1"]
             if all(col in df_resultat.columns for col in colonnes_requises):
                 
-                # 1. Création du Pivot de table initial
+                # 1. Création du Pivot de table pur (conserve la structure de l'index de groupe)
                 tcd_bilan = df_resultat.pivot_table(
                     index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
                     values=["MatchNonFF", "Match Joué", "VictoireJ1"],
@@ -128,78 +128,59 @@ try:
                 )
 
                 if not tcd_bilan.empty:
+                    # Tri et réorganisation des colonnes natives
                     colonnes_existantes = [c for c in ["MatchNonFF", "Match Joué", "VictoireJ1"] if c in tcd_bilan.columns]
                     tcd_bilan = tcd_bilan[colonnes_existantes]
                     
-                    # 2. Calcul propre du Taux (valeur brute pour appliquer nos couleurs plus tard)
-                    tcd_bilan["Taux Brut"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match Joué"]).fillna(0)) * 100
+                    # Calcul du pourcentage de victoires
+                    tcd_bilan["% Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match Joué"]).fillna(0)) * 100
 
-                    # 3. Tri du tableau par Équipe, Joueur puis Semaine
+                    # Application des noms propres pour les colonnes
+                    tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires"]
                     tcd_bilan = tcd_bilan.sort_values(by=["Equipe1", "Joueur1", "Semaine"], ascending=True)
 
-                    # 4. Fonction Python pour injecter les couleurs directement dans les cellules HTML
-                    def générer_ligne_html(row_index, row_data):
-                        # Détermination de la couleur selon le pourcentage
-                        taux = row_data["Taux Brut"]
-                        if taux >= 75:
-                            bg_color, text_color = "#006837", "#f1f1f1"  # Vert foncé sportif
-                        elif taux >= 40:
-                            bg_color, text_color = "#feffbe", "#000000"  # Jaune / Orange clair
-                        else:
-                            bg_color, text_color = "#a50026", "#f1f1f1"  # Rouge échec
+                    # 2. Utilisation du Styler de Pandas (Pour garder le dégradé SANS casser le code texte)
+                    tcd_style = tcd_bilan.style.format({
+                        "Sélections": "{:,.0f}",
+                        "Matchs Joués": "{:,.0f}",
+                        "Matchs Gagnés": "{:,.0f}",
+                        "% Victoires": "{:.1f}%"
+                    }).background_gradient(
+                        cmap="RdYlGn", 
+                        subset=["% Victoires"],
+                        vmin=0,
+                        vmax=100,
+                        axis=0
+                    )
 
-                        # Construction des cellules HTML standards
-                        html_cells = f"""
-                        <td style='vertical-align: top !important; text-align: right;'>{int(row_data['MatchNonFF'])}</td>
-                        <td style='vertical-align: top !important; text-align: right;'>{int(row_data['Match Joué'])}</td>
-                        <td style='vertical-align: top !important; text-align: right;'>{int(row_data['VictoireJ1'])}</td>
-                        <td style='vertical-align: top !important; text-align: right; background-color: {bg_color} !important; color: {text_color} !important; font-weight: bold;'>{taux:.1f}%</td>
-                        """
-                        return html_cells
-
-                    # 5. Construction manuelle du tableau HTML complet pour un contrôle absolu
-                    # On réinitialise l'index pour manipuler les colonnes facilement
-                    df_html = tcd_bilan.reset_index()
-                    
-                    html_table = """
+                    # 3. INJECTION DU CSS GLOBAL DU TABLEAU
+                    # Cette astuce applique le quadrillage foncé et l'alignement vertical en haut
+                    # sur n'importe quel tableau HTML généré par le style de Pandas, résolvant tous les bugs.
+                    style_override_css = """
                     <style>
-                    .tcd-custom { border-collapse: collapse !important; width: 100%; font-family: sans-serif; }
-                    .tcd-custom th { background-color: #2b2b2b; color: white; padding: 10px; border: 1px solid #555555 !important; text-align: left; }
-                    .tcd-custom td { padding: 8px; border: 1px solid #555555 !important; }
+                    /* Cible toutes les cellules de données et d'index du tableau */
+                    .element-container table, table {
+                        border-collapse: collapse !important;
+                        width: 100% !important;
+                    }
+                    th, td, .level0, .row_heading, .index_name {
+                        vertical-align: top !important;
+                        border: 1px solid #555555 !important;
+                        padding: 8px !important;
+                    }
+                    /* Forcer la couleur du texte à rester lisible selon le fond du dégradé de Pandas */
+                    td.col3 {
+                        font-weight: bold !important;
+                    }
                     </style>
-                    <table class='tcd-custom'>
-                        <thead>
-                            <tr>
-                                <th>Équipe 1</th>
-                                <th>Joueur 1</th>
-                                <th>Classement</th>
-                                <th>Division</th>
-                                <th>Semaine</th>
-                                <th style='text-align: right;'>Sélections</th>
-                                <th style='text-align: right;'>Matchs Joués</th>
-                                <th style='text-align: right;'>Matchs Gagnés</th>
-                                <th style='text-align: right;'>% Victoires</th>
-                            </tr>
-                        </thead>
-                        <tbody>
                     """
 
-                    # Remplissage des lignes
-                    for idx, row in df_html.iterrows():
-                        html_table += "<tr>"
-                        html_table += f"<td style='vertical-align: top !important;'>{row['Equipe1']}</td>"
-                        html_table += f"<td style='vertical-align: top !important;'>{row['Joueur1']}</td>"
-                        html_table += f"<td style='vertical-align: top !important;'>{row['ClassementJ1']}</td>"
-                        html_table += f"<td style='vertical-align: top !important;'>{row['Division']}</td>"
-                        html_table += f"<td style='vertical-align: top !important;'>{row['Semaine']}</td>"
-                        html_table += générer_ligne_html(idx, row)
-                        html_table += "</tr>"
+                    # Récupération du HTML natif généré par le Styler (conserve les fusions de cellules)
+                    tableau_html = tcd_style.to_html()
 
-                    html_table += "</tbody></table>"
-
-                    # 6. Rendu final propre
+                    # Rendu final
                     st.subheader("📋 Tableau de synthèse des performances")
-                    st.write(html_table, unsafe_allow_html=True)
+                    st.write(style_override_css + tableau_html, unsafe_allow_html=True)
                     
                 else:
                     st.info("Données insuffisantes pour générer ce tableau croisé.")
