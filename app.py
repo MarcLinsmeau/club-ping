@@ -122,7 +122,7 @@ try:
                 
                 # Pivot de table initial
                 tcd_bilan = df_resultat.pivot_table(
-                    index=["Equipe1", "Joueur1", "ClassementJ1", "Semaine",  "Division"], 
+                    index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
                     values=["MatchNonFF", "Match Joué", "VictoireJ1"],
                     aggfunc={
                         "MatchNonFF": "size",   # Compte les sélections (lignes)
@@ -167,18 +167,17 @@ try:
                         vmax=100,
                         axis=0
                     ).set_table_styles([
-                        # Alignement vertical en haut ET alignement de texte à gauche pour toutes les cellules (td, th)
-                        # et toutes les lignes d'index/en-têtes natives de Pandas (.row_heading, .col_heading, .index_name)
-                        {"selector": "td, th, .row_heading, .col_heading, .index_name, .blank", "props": [
+                        # Ciblage ultra-complet de toutes les variantes de cellules générées par le moteur html de pandas
+                        {"selector": "th, td, th.row_heading, th.col_heading, td.data, .blank", "props": [
                             ("vertical-align", "top !important"),
                             ("text-align", "left !important")
                         ]},
-                        # Quadrillage foncé bien marqué sur les bordures
-                        {"selector": "td, th, .row_heading, .col_heading, .index_name", "props": [
+                        # Forçage du quadrillage foncé identique partout pour une structure géométrique nette
+                        {"selector": "th, td, th.row_heading, th.col_heading, td.data", "props": [
                             ("border", "1px solid #555555 !important")
                         ]},
-                        # Marges internes pour le confort de lecture
-                        {"selector": "td, th", "props": [
+                        # Marges de confort pour aérer le texte aligné à gauche
+                        {"selector": "th, td", "props": [
                             ("padding", "8px !important")
                         ]}
                     ], overwrite=False)
