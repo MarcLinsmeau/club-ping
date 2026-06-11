@@ -167,13 +167,21 @@ try:
                         vmax=100,
                         axis=0
                     ).set_table_styles([
-                        # Alignement vertical en haut pour toutes les cellules de données (td) et d'en-tête (th)
-                        {"selector": "td, th", "props": [("vertical-align", "top !important")]},
+                        # Alignement vertical en haut ET alignement de texte à gauche pour toutes les cellules (td, th)
+                        # et toutes les lignes d'index/en-têtes natives de Pandas (.row_heading, .col_heading, .index_name)
+                        {"selector": "td, th, .row_heading, .col_heading, .index_name, .blank", "props": [
+                            ("vertical-align", "top !important"),
+                            ("text-align", "left !important")
+                        ]},
                         # Quadrillage foncé bien marqué sur les bordures
-                        {"selector": "td, th", "props": [("border", "1px solid #555555 !important")]},
-                        # Petit confort de lecture additionnel (marges internes)
-                        {"selector": "td, th", "props": [("padding", "8px !important")]}
-                    ], overwrite=False) # False pour ne pas écraser les couleurs du dégradé
+                        {"selector": "td, th, .row_heading, .col_heading, .index_name", "props": [
+                            ("border", "1px solid #555555 !important")
+                        ]},
+                        # Marges internes pour le confort de lecture
+                        {"selector": "td, th", "props": [
+                            ("padding", "8px !important")
+                        ]}
+                    ], overwrite=False)
                     
                     # Rendu HTML propre forcé sans défilement
                     st.write(tcd_style.to_html(escape=False), unsafe_allow_html=True)
