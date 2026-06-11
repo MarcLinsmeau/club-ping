@@ -121,7 +121,7 @@ try:
                 
                 # Construction du TCD multi-index et multi-valeurs
                 tcd_bilan = df_resultat.pivot_table(
-                    index=["Equipe1", "Joueur1", "ClassementJ1", "Division"], # Vos dimensions en lignes
+                    index=["Equipe1", "Joueur1", "ClassementJ1", "Semaine", "Division"], # Vos dimensions en lignes
                     values=["Match Joué", "VictoireJ1"],                      # Les deux métriques à extraire
                     aggfunc="sum",                                            # Somme pour les deux
                     fill_value=0
