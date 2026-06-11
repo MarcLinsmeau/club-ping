@@ -117,4 +117,83 @@ try:
             st.write("Ce tableau récapitule les statistiques complètes (trié par équipe, joueur et semaine).")
 
             # Vérification de la présence des colonnes requises pour le calcul
-            colonnes_requises =
+            colonnes_requises = ["MatchNonFF", "Match Joué", "VictoireJ1"]
+            if all(col in df_resultat.columns for col in colonnes_requises):
+                
+                # Pivot de table initial
+                tcd_bilan = df_resultat.pivot_table(
+                    index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
+                    values=["MatchNonFF", "Match Joué", "VictoireJ1"],
+                    aggfunc={
+                        "MatchNonFF": "size",   # Compte les sélections (lignes)
+                        "Match Joué": "sum",    # Somme des matchs joués
+                        "VictoireJ1": "sum"     # Somme des victoires
+                    },
+                    fill_value=0
+                )
+
+                if not tcd_bilan.empty:
+                    # Reconstruction sécurisée pour l'ordre initial des colonnes
+                    colonnes_existantes = [c for c in ["MatchNonFF", "Match Joué", "VictoireJ1"] if c in tcd_bilan.columns]
+                    tcd_bilan = tcd_bilan[colonnes_existantes]
+                    
+                    # Calcul du pourcentage de victoires
+                    tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match Joué"]).fillna(0)) * 100
+
+                    # Application des noms propres pour les en-têtes du tableau
+                    tcd_bilan.columns = [
+                        "Sélections", 
+                        "Matchs Joués", 
+                        "Matchs Gagnés", 
+                        "% Victoires"
+                    ]
+
+                    # Tri du tableau par Équipe, Joueur puis Semaine
+                    tcd_bilan = tcd_bilan.sort_values(by=["Equipe1", "Joueur1", "Semaine"], ascending=True)
+
+                    # Affichage final de la matrice de performance
+                    st.subheader("📋 Tableau de synthèse des performances")
+                    
+                    # Application du style Pandas (dégradé unique sur % Victoires)
+                    tcd_style = tcd_bilan.style.format({
+                        "Sélections": "{:,.0f}",
+                        "Matchs Joués": "{:,.0f}",
+                        "Matchs Gagnés": "{:,.0f}",
+                        "% Victoires": "{:.1f}%"
+                    }).background_gradient(
+                        cmap="RdYlGn", 
+                        subset=["% Victoires"],
+                        vmin=0,
+                        vmax=100,
+                        axis=0
+                    )
+                    
+                    # --- CONFIGURATION CSS DE L'AFFICHAGE ---
+                    # vertical-align: top -> Aligne le texte en haut pour les lignes fusionnées de l'index (Equipe, Joueur)
+                    # border -> Force des bordures grises foncées bien visibles sur les entêtes (th) et cellules (td)
+                    style_css = """
+                    <style>
+                    table {
+                        border-collapse: collapse !important;
+                        width: 100%;
+                    }
+                    th, td {
+                        vertical-align: top !important;
+                        border: 1px solid #555555 !important;
+                        padding: 6px !important;
+                    }
+                    </style>
+                    """
+                    
+                    # Injection conjointe du CSS et du tableau HTML
+                    tableau_html = tcd_style.to_html(escape=False)
+                    st.write(style_css + tableau_html, unsafe_allow_html=True)
+                    
+                else:
+                    st.info("Données insuffisantes pour générer ce tableau croisé.")
+            else:
+                st.error("Une ou plusieurs colonnes de calcul ('MatchNonFF', 'Match Joué', 'VictoireJ1') sont introuvables.")
+                
+except Exception as e:
+    st.error("Une erreur technique est survenue lors de l'exécution de l'application.")
+    st.exception(e)
