@@ -122,7 +122,7 @@ try:
                 # Construction du TCD avec tes nouvelles dimensions en lignes
                 tcd_performance = df_resultat.pivot_table(
                     index=["Equipe1", "Joueur1", "ClassementJ1", "Division"], # Toutes tes dimensions en lignes
-                    values="VictoireJ1",                                      # La métrique à analyser
+                    values=["Match Joué", "VictoireJ1"],                                      # La métrique à analyser
                     aggfunc="sum",                                            # On fait la somme des victoires
                     fill_value=0
                 )
