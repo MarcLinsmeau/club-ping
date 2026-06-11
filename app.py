@@ -34,12 +34,12 @@ try:
         annee_par_defaut = liste_annees[-1]  # Prend la dernière année (ex: 2026)
         index_annee = options_annees.index(annee_par_defaut)
     else:
-        index_annee = 0
+        index_annee = "2025-2026"
 
     # 2. Pour le club ou le joueur (Optionnel)
     # Si tu veux imposer un club par défaut (ex: "Mon Club"), tu cherches son index :
     # index_club = options_clubs.index("Mon Club") if "Mon Club" in options_clubs else 0
-    index_club = 0  # Laisse sur "Tous les clubs" par défaut
+    index_club = "AVENNES"  # Laisse sur "Tous les clubs" par défaut
     index_joueur = 0 # Laisse sur "Tous les joueurs" par défaut
 
     # --- ZONE DES FILTRES ---
