@@ -15,7 +15,8 @@ try:
         reponse_rpc = conn.client.rpc("obtenir_filtres_uniques").execute()
         donnees = reponse_rpc.data
         
-        annees = sorted([str(a) for a in donnees.get("annees", [])])
+        rep_a = conn.table("vue_annees_uniques").select("Annee").execute()
+        annees = sorted(list(pd.DataFrame(rep_a.data)["Annee"]))
         clubs = sorted(donnees.get("clubs", []))
         joueurs = sorted(donnees.get("joueurs", []))
         
