@@ -9,26 +9,22 @@ try:
     # 1. Connexion à Supabase
     conn = st.connection("supabase", type=SupabaseConnection)
 
-    # --- CHARGEMENT UNIQUE ET RAPIDE DES CRITÈRES (Mis en cache pour la vitesse) ---
+    # --- CHARGEMENT DES FILTRES VIA RPC (Uuuultra rapide, pas de doublons reçus) ---
     @st.cache_data(ttl=600)
     def charger_filtres_uniques():
-        # Requête 1 : Années
-        rep_a = conn.table("test").select("Annee").execute()
-        annees = sorted(list(pd.DataFrame(rep_a.data)["Annee"].dropna().unique()))
+        # On appelle la fonction SQL qu'on a créée sur Supabase
+        reponse_rpc = conn.rpc("obtenir_filtres_uniques").execute()
+        donnees = reponse_rpc.data
         
-        # Requête 2 : Clubs (Equipe1)
-        rep_c = conn.table("test").select("Equipe1").execute()
-        clubs = sorted(list(pd.DataFrame(rep_c.data)["Equipe1"].dropna().unique()))
-        
-        # Requête 3 : Joueurs (Joueur1)
-        rep_j = conn.table("test").select("Joueur1").execute()
-        joueurs = sorted(list(pd.DataFrame(rep_j.data)["Joueur1"].dropna().unique()))
+        # On extrait les listes uniques calculées par la base de données
+        annees = sorted([str(a) for a in donnees.get("annees", [])])
+        clubs = sorted(donnees.get("clubs", []))
+        joueurs = sorted(donnees.get("joueurs", []))
         
         return annees, clubs, joueurs
 
-    # Récupération des 3 listes d'un coup
+    # Récupération des 3 listes uniques d'un coup
     liste_annees, liste_clubs, liste_joueurs = charger_filtres_uniques()
-
     # --- ZONE DES FILTRES ---
     st.subheader("🔍 Critères de recherche")
     col1, col2, col3 = st.columns(3)
