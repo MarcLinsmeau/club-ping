@@ -34,7 +34,7 @@ try:
         annee_par_defaut = liste_annees[-1]  # Prend la dernière année (ex: 2026)
         index_annee = options_annees.index(annee_par_defaut)
     else:
-        index_annee = "2025-2026"
+        index_annee = 0
 
     # 2. Pour le club ou le joueur (Optionnel)
     # Si tu veux imposer un club par défaut (ex: "Mon Club"), tu cherches son index :
