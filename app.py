@@ -122,7 +122,7 @@ try:
                 
                 # Pivot de table initial
                 tcd_bilan = df_resultat.pivot_table(
-                    index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
+                    index=["Equipe1", "Joueur1", "ClassementJ1", "Semaine",  "Division"], 
                     values=["MatchNonFF", "Match Joué", "VictoireJ1"],
                     aggfunc={
                         "MatchNonFF": "size",   # Compte les sélections (lignes)
