@@ -97,7 +97,7 @@ try:
         else:
             st.subheader(f"📋 Records trouvés ({len(df_resultat)} match(s))")
             
-            # Réorganisation des colonnes d'affichage selon ton nouveau schéma SQL
+            # Réorganisation des colonnes d'affichage selon ton schéma SQL
             colonnes_ordonnees = [
                 "id", "Annee", "Division", "Semaine", "Match", 
                 "Equipe1", "Joueur1", "ClassementJ1", "ClassJ1New", "PointsJ1",
@@ -111,7 +111,7 @@ try:
             st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
 
 
-            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) : SÉLECTIONS & PERFORMANCE ---
+            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) SECURISEE ---
             st.markdown("---")
             st.header("📊 Tableau Croisé Dynamique : Bilan des Joueurs")
             st.write("Ce tableau récapitule le nombre de sélections (lignes), de matchs joués et de matchs gagnés.")
@@ -120,7 +120,7 @@ try:
             colonnes_requises = ["MatchNonFF", "Match Joué", "VictoireJ1"]
             if all(col in df_resultat.columns for col in colonnes_requises):
                 
-                # Pivot de table avec index hiérarchique et fonctions d'agrégation mixtes
+                # Pivot de table
                 tcd_bilan = df_resultat.pivot_table(
                     index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
                     values=["MatchNonFF", "Match Joué", "VictoireJ1"],
@@ -132,14 +132,20 @@ try:
                     fill_value=0
                 )
 
-                # Réorganisation visuelle des colonnes de gauche à droite
-                tcd_bilan = tcd_bilan[["MatchNonFF", "Match Joué", "VictoireJ1"]]
-                
-                # Renommer les en-têtes pour l'affichage final
-                tcd_bilan.columns = ["Sélections (Taille)", "Matchs Joués (Somme)", "Matchs Gagnés (Somme)"]
-
-                # Rendu final avec dégradé de couleur progressif
                 if not tcd_bilan.empty:
+                    # Reconstruction sécurisée pour l'ordre des colonnes
+                    colonnes_existantes = [c for c in ["MatchNonFF", "Match Joué", "VictoireJ1"] if c in tcd_bilan.columns]
+                    tcd_bilan = tcd_bilan[colonnes_existantes]
+                    
+                    # Dictionnaire de correspondance pour renommer proprement
+                    dictionnaire_noms = {
+                        "MatchNonFF": "Sélections (Taille)",
+                        "Match Joué": "Matchs Joués (Somme)",
+                        "VictoireJ1": "Matchs Gagnés (Somme)"
+                    }
+                    tcd_bilan.columns = [dictionnaire_noms[c] for c in tcd_bilan.columns]
+
+                    # Affichage final de la matrice de performance avec dégradé
                     st.subheader("📋 Tableau de synthèse des performances")
                     st.dataframe(
                         tcd_bilan.style.background_gradient(cmap="YlGnBu", axis=0), 
