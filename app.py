@@ -111,10 +111,10 @@ try:
             st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
 
 
-            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) AVEC POURCENTAGE ---
+            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) AVEC TRI PERSONNALISÉ ---
             st.markdown("---")
             st.header("📊 Tableau Croisé Dynamique : Bilan des Joueurs")
-            st.write("Ce tableau récapitule les sélections, l'activité, les victoires et le taux de réussite.")
+            st.write("Ce tableau récapitule les statistiques triées par Équipe, par Joueur et par Semaine.")
 
             # Vérification de la présence des colonnes requises pour le calcul
             colonnes_requises = ["MatchNonFF", "Match Joué", "VictoireJ1"]
@@ -137,9 +137,7 @@ try:
                     colonnes_existantes = [c for c in ["MatchNonFF", "Match Joué", "VictoireJ1"] if c in tcd_bilan.columns]
                     tcd_bilan = tcd_bilan[colonnes_existantes]
                     
-                    # --- CALCUL DU POURCENTAGE DE VICTOIRES ---
-                    # Pour éviter la division par zéro (si Match Joué = 0), on utilise .div() avec fill_value
-                    # Multiplié par 100 pour obtenir une valeur sur 100
+                    # Calcul du pourcentage de victoires
                     tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match Joué"]).fillna(0)) * 100
 
                     # Application des noms propres pour les en-têtes du tableau
@@ -150,10 +148,14 @@ try:
                         "% Victoires"
                     ]
 
+                    # --- CODE DE TRI ICI ---
+                    # Puisque les colonnes de tri font partie de l'index des lignes (MultiIndex),
+                    # on spécifie leurs noms exacts. 'ascending=True' trie du plus petit au plus grand (A-Z ou Semaine 1 -> 2).
+                    tcd_bilan = tcd_bilan.sort_values(by=["Equipe1", "Joueur1", "Semaine"], ascending=True)
+
                     # Affichage final de la matrice de performance avec formatage et dégradé
                     st.subheader("📋 Tableau de synthèse des performances")
                     
-                    # On applique un formatage spécifique : pas de virgule pour les compteurs, 1 décimale et '%' pour le taux
                     tcd_style = tcd_bilan.style.format({
                         "Sélections": "{:,.0f}",
                         "Matchs Joués": "{:,.0f}",
@@ -164,7 +166,7 @@ try:
                         subset=["Sélections", "Matchs Joués", "Matchs Gagnés"], 
                         axis=0
                     ).background_gradient(
-                        cmap="RdYlGn", # Dégradé Rouge (0%) -> Jaune (50%) -> Vert (100%) pour le taux de victoire
+                        cmap="RdYlGn", 
                         subset=["% Victoires"],
                         vmin=0,
                         vmax=100,
