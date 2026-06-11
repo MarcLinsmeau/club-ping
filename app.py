@@ -9,14 +9,14 @@ try:
     # 1. Connexion à Supabase
     conn = st.connection("supabase", type=SupabaseConnection)
 
-    # --- CHARGEMENT DES FILTRES VIA RPC (Uuuultra rapide, pas de doublons reçus) ---
+   # --- CHARGEMENT DES FILTRES VIA RPC ---
     @st.cache_data(ttl=600)
     def charger_filtres_uniques():
-        # On appelle la fonction SQL qu'on a créée sur Supabase
-        reponse_rpc = conn.rpc("obtenir_filtres_uniques").execute()
+        # ATTENTION : On utilise conn.client.rpc au lieu de conn.rpc
+        reponse_rpc = conn.client.rpc("obtenir_filtres_uniques").execute()
         donnees = reponse_rpc.data
         
-        # On extrait les listes uniques calculées par la base de données
+        # On extrait en toute sécurité les listes uniques calculées par Supabase
         annees = sorted([str(a) for a in donnees.get("annees", [])])
         clubs = sorted(donnees.get("clubs", []))
         joueurs = sorted(donnees.get("joueurs", []))
