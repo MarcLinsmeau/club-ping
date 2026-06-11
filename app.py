@@ -116,7 +116,6 @@ try:
             st.header("📊 Tableau Croisé Dynamique : Bilan des Joueurs")
             st.write("Ce tableau récapitule les statistiques complètes. Il s'affiche en entier sans barre de défilement.")
 
-            # Vérification de la présence des colonnes requises pour le calcul
             colonnes_requises = ["MatchNonFF", "Match", "VictoireJ1"]
             if all(col in df_resultat.columns for col in colonnes_requises):
                 
@@ -137,41 +136,33 @@ try:
                     colonnes_existantes = [c for c in ["MatchNonFF", "Match", "VictoireJ1"] if c in tcd_base.columns]
                     tcd_base = tcd_base[colonnes_existantes]
                     
-                    # 2. CALCUL DES SOUS-TOTAUX PAR JOUEUR
-                    # On groupe par Equipe et Joueur, on somme les valeurs et on reconstruit la structure d'index requise
+                    # Normalisation propre du niveau "Semaine" en chaînes de caractères
+                    tcd_base.index = tcd_base.index.set_levels(tcd_base.index.levels[4].astype(str), level=4)
+                    
+                    # 2. CALCUL DES SOUS-TOTAUX PAR JOUEUR SEULEMENT
                     totaux_joueurs = tcd_base.groupby(level=["Equipe1", "Joueur1"]).sum()
                     
-                    # On injecte des étiquettes textuelles fixes pour les sous-dimensions afin d'éviter les cases vides
+                    # Remplissage des dimensions d'index pour insérer proprement la ligne
                     totaux_joueurs["ClassementJ1"] = "TOTAL JOUEUR"
                     totaux_joueurs["Division"] = "TOTAL JOUEUR"
                     totaux_joueurs["Semaine"] = "TOTAL JOUEUR"
                     
-                    # Redéfinition de l'index complet pour s'aligner avec le tableau de base
                     totaux_joueurs = totaux_joueurs.set_index(["ClassementJ1", "Division", "Semaine"], append=True)
                     
-                    # 3. CALCUL DU TOTAL GÉNÉRAL
-                    total_general = pd.DataFrame([tcd_base.sum()], columns=colonnes_existantes)
-                    total_general.index = pd.MultiIndex.from_tuples(
-                        [("TOTAL CLUB", "TOTAL CLUB", "TOTAL CLUB", "TOTAL CLUB", "TOTAL CLUB")],
-                        names=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"]
-                    )
+                    # 3. FUSION UNIQUEMENT DE LA BASE ET DES TOTAUX JOUEURS (Ligne global Club retirée)
+                    tcd_bilan = pd.concat([tcd_base, totaux_joueurs])
                     
-                    # 4. FUSION DES TROIS BLOCS ET TRI INTELLIGENT
-                    # On combine les lignes de détails, les totaux par joueur, et le total général
-                    tcd_bilan = pd.concat([tcd_base, totaux_joueurs, total_general])
-                    
-                    # Tri personnalisé : on veut regrouper par Equipe, par Joueur, et pousser la ligne "TOTAL JOUEUR" en dernier sous chaque joueur
-                    # Pour cela, on crée une clé de tri temporaire où "TOTAL JOUEUR" est vu comme supérieur aux semaines numériques
+                    # Tri pour placer le "TOTAL JOUEUR" en bas des semaines de son bloc respectif
                     tcd_bilan = tcd_bilan.sort_index(level=["Equipe1", "Joueur1", "Semaine"])
                     
-                    # 5. CALCULS DES POURCENTAGES & RENOMMAGE DES COLONNES
+                    # 4. CALCULS DES POURCENTAGES & RENOMMAGE DES COLONNES
                     tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
                     tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires"]
 
-                    # Affichage final de la matrice de performance
+                    # Affichage final de la performance
                     st.subheader("📋 Tableau de synthèse des performances")
                     
-                    # Application du style Pandas (dégradé unique sur % Victoires)
+                    # Application des styles CSS (Alignements haut/gauche, bordures serrées, surbrillance du gras)
                     tcd_style = tcd_bilan.style.format({
                         "Sélections": "{:,.0f}",
                         "Matchs Joués": "{:,.0f}",
@@ -184,34 +175,33 @@ try:
                         vmax=100,
                         axis=0
                     ).set_table_styles([
-                        # Ciblage complet de toutes les cellules standards
+                        # Alignement parfait sur l'intégralité des cellules générées
                         {"selector": "th, td, th.row_heading, th.col_heading, td.data, .blank", "props": [
                             ("vertical-align", "top !important"),
                             ("text-align", "left !important")
                         ]},
-                        # Forçage du quadrillage foncé
+                        # Forçage global du quadrillage sombre
                         {"selector": "th, td, th.row_heading, th.col_heading, td.data", "props": [
                             ("border", "1px solid #555555 !important")
                         ]},
-                        # Marges de confort
+                        # Marges intérieures
                         {"selector": "th, td", "props": [
                             ("padding", "8px !important")
                         ]},
-                        # --- STYLE EN GRAS POUR LES LIGNES DE SOUSTOTAUX ET TOTAUX ---
-                        # Repère n'importe quelle ligne contenant un mot clé de Totalisation
+                        # Style en gras appliqué chirurgicalement aux lignes de totaux par joueur restantes
                         {"selector": "tr:has(th:contains('TOTAL')), tr:has(td:contains('TOTAL'))", "props": [
                             ("font-weight", "bold !important"),
-                            ("background-color", "#edf2f7 !important") # Teinte un poil plus sombre pour bien démarquer les calculs
+                            ("background-color", "#edf2f7 !important")
                         ]}
                     ], overwrite=False)
                     
-                    # Rendu HTML propre forcé sans défilement
+                    # Rendu final HTML propre sans défilement
                     st.write(tcd_style.to_html(escape=False), unsafe_allow_html=True)
                     
                 else:
                     st.info("Données insuffisantes pour générer ce tableau croisé.")
             else:
-                st.error("Une ou plusieurs colonnes de calcul ('MatchNonFF', 'Match Joué', 'VictoireJ1') sont introuvables.")
+                st.error("Une ou plusieurs colonnes de calcul ('MatchNonFF', 'Match', 'VictoireJ1') sont introuvables.")
                 
 except Exception as e:
     st.error("Une erreur technique est survenue lors de l'exécution de l'application.")
