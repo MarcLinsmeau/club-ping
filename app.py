@@ -111,10 +111,10 @@ try:
             st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
 
 
-            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) SANS COULEUR INUTILE ---
+            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) SANS AUCUN DEFILEMENT ---
             st.markdown("---")
             st.header("📊 Tableau Croisé Dynamique : Bilan des Joueurs")
-            st.write("Ce tableau récapitule les statistiques triées par Équipe, par Joueur et par Semaine.")
+            st.write("Ce tableau récapitule les statistiques complètes. Il s'affiche en entier sans barre de défilement.")
 
             # Vérification de la présence des colonnes requises pour le calcul
             colonnes_requises = ["MatchNonFF", "Match Joué", "VictoireJ1"]
@@ -151,10 +151,10 @@ try:
                     # Tri du tableau par Équipe, Joueur puis Semaine
                     tcd_bilan = tcd_bilan.sort_values(by=["Equipe1", "Joueur1", "Semaine"], ascending=True)
 
-                    # Affichage final de la matrice de performance avec formatage et dégradé unique
+                    # Affichage final de la matrice de performance
                     st.subheader("📋 Tableau de synthèse des performances")
                     
-                    # Seule la colonne "% Victoires" reçoit le background_gradient
+                    # Application du style Pandas (dégradé unique sur % Victoires)
                     tcd_style = tcd_bilan.style.format({
                         "Sélections": "{:,.0f}",
                         "Matchs Joués": "{:,.0f}",
@@ -168,7 +168,11 @@ try:
                         axis=0
                     )
                     
-                    st.dataframe(tcd_style, use_container_width=True)
+                    # --- ASTUCE POUR UN TABLEAU ENTIER SANS BARRE DE DEFILEMENT ---
+                    # En injectant le style directement sous forme de tableau HTML brut via st.write,
+                    # le navigateur est obligé d'afficher le tableau sur toute sa hauteur, sans aucune restriction.
+                    st.write(tcd_style.to_html(escape=False), unsafe_allow_html=True)
+                    
                 else:
                     st.info("Données insuffisantes pour générer ce tableau croisé.")
             else:
