@@ -12,93 +12,106 @@ try:
     # --- FONCTIONS D'APPEL DES RPC (VALEURS UNIQUES EN CASCADE) ---
     @st.cache_data(ttl=300)
     def charger_annees():
-        """Récupère toutes les années uniques disponibles"""
         res = conn.client.rpc("obtenir_annees_uniques").execute()
         return [str(row["annee"]) for row in res.data] if res.data else []
 
     @st.cache_data(ttl=300)
     def charger_clubs(annee):
-        """Récupère les clubs uniques pour une année donnée"""
         res = conn.client.rpc("obtenir_clubs_par_annee", {"annee_recherche": annee}).execute()
         return [row["club"] for row in res.data] if res.data else []
 
     @st.cache_data(ttl=300)
     def charger_joueurs(annee, club):
-        """Récupère les joueurs uniques pour une année et un club donnés"""
         res = conn.client.rpc("obtenir_joueurs_par_annee_et_club", {"annee_recherche": annee, "club_recherche": club}).execute()
         return [row["joueur"] for row in res.data] if res.data else []
 
 
-    # --- INTERFACE ET FILTRES ---
+    # --- INTERFACE ET FILTRES EN CASCADE STRICTE ---
     st.subheader("🔍 Filtres de sélection")
     col1, col2, col3 = st.columns(3)
 
-    # 1. Filtre Année (Toujours actif et obligatoire pour éviter le timeout)
+    # 1. FILTRE ANNÉE (Toujours actif au démarrage)
     liste_annees = charger_annees()
+    options_annees = ["--- Choisir une année ---"] + liste_annees
+
     with col1:
-        if liste_annees:
-            annee_choisie = st.selectbox("Année :", liste_annees, index=0)
-        else:
-            st.error("Aucune donnée trouvée dans la base.")
-            st.stop()
+        annee_choisie = st.selectbox("1. Année :", options_annees, index=0)
 
-    # 2. Filtre Club (Chargé dynamiquement selon l'année choisie)
-    liste_clubs = charger_clubs(annee_choisie)
-    options_clubs = ["Tous les clubs"] + liste_clubs
+    # Détermination du statut du filtre Club
+    annee_valide = annee_choisie != "--- Choisir une année ---"
+
+    # 2. FILTRE CLUB (Verrouillé tant qu'une année n'est pas choisie)
+    if annee_valide:
+        liste_clubs = charger_clubs(annee_choisie)
+        options_clubs = ["--- Choisir un club ---"] + liste_clubs
+        desactiver_club = False
+    else:
+        options_clubs = ["Veuillez d'abord choisir une année"]
+        desactiver_club = True
+
     with col2:
-        club_choisi = st.selectbox("Club (Equipe 1) :", options_clubs, index=0)
+        club_choisi = st.selectbox(
+            "2. Club (Equipe 1) :", 
+            options_clubs, 
+            index=0, 
+            disabled=desactiver_club
+        )
 
-    # 3. Filtre Joueur (Chargé dynamiquement en cascade)
+    # Détermination du statut du filtre Joueur
+    club_valide = annee_valide and club_choisi != "--- Choisir un club ---" and club_choisi != "Veuillez d'abord choisir une année"
+
+    # 3. FILTRE JOUEUR (Verrouillé tant qu'un club n'est pas choisi)
+    if club_valide:
+        liste_joueurs = charger_joueurs(annee_choisie, club_choisi)
+        options_joueurs = ["Tous les joueurs"] + liste_joueurs
+        desactiver_joueur = False
+    else:
+        options_joueurs = ["Veuillez d'abord choisir un club"]
+        desactiver_joueur = True
+
     with col3:
-        if club_choisi != "Tous les clubs":
-            # Si un club est choisi, on récupère uniquement ses joueurs via la fonction RPC
-            liste_joueurs = charger_joueurs(annee_choisie, club_choisi)
-            options_joueurs = ["Tous les joueurs"] + liste_joueurs
-            joueur_choisi = st.selectbox("Joueur (Joueur 1) :", options_joueurs, index=0)
-        else:
-            # Si "Tous les clubs" est sélectionné, on permet de chercher le joueur par texte libre
-            # car récupérer la liste globale de TOUS les joueurs de l'année serait trop lourd
-            joueur_choisi = st.text_input("Rechercher un joueur (Texte libre) :", value="")
+        joueur_choisi = st.selectbox(
+            "3. Joueur (Joueur 1) :", 
+            options_joueurs, 
+            index=0, 
+            disabled=desactiver_joueur
+        )
 
-    # --- CONSTRUCTION DE LA REQUÊTE FINALE SUR LA TABLE "TEST" ---
-    # On commence par filtrer par l'année sélectionnée (Filtre de base ultra-performant)
-    requete = conn.table("test").select("*").eq("Annee", annee_choisie)
 
-    # Si un club spécifique est sélectionné
-    if club_choisi != "Tous les clubs":
-        requete = requete.eq("Equipe1", club_choisi)
-        # Si un joueur spécifique de ce club est sélectionné
+    # --- ENCLENCHEMENT DE LA REQUÊTE ET AFFICHAGE ---
+    # On n'affiche rien tant que les critères minimaux (Année et Club) ne sont pas cochés
+    if not annee_valide:
+        st.info("💡 En attente de vos critères : Veuillez sélectionner une **Année** pour commencer.")
+    elif not club_valide:
+        st.info("💡 Étape suivante : Veuillez sélectionner un **Club** pour charger les matchs correspondants.")
+    else:
+        # Si Année et Club sont valides, on prépare la requête finale
+        requete = conn.table("test").select("*").eq("Annee", annee_choisie).eq("Equipe1", club_choisi)
+
+        # Si un joueur spécifique est demandé (et qu'on a pas laissé "Tous les joueurs")
         if joueur_choisi != "Tous les joueurs":
             requete = requete.eq("Joueur1", joueur_choisi)
+
+        # Exécution (Sécurité limitée à 5000 lignes, mais ici avec Année + Club ce sera très léger)
+        reponse = requete.limit(5000).execute()
+        df_resultat = pd.DataFrame(reponse.data)
+
+        if df_resultat.empty:
+            st.warning("⚠️ Aucun record trouvé pour cette combinaison précise.")
+        else:
+            st.subheader(f"📋 Records trouvés ({len(df_resultat)} match(s))")
             
-    # Si "Tous les clubs" est sélectionné mais que l'utilisateur a écrit un nom de joueur
-    elif club_choisi == "Tous les clubs" and joueur_choisi.strip() != "":
-        # Recherche insensible à la casse sur la colonne Joueur1
-        requete = requete.ilike("Joueur1", f"%{joueur_choisi}%")
-
-    # --- EXÉCUTION ET AFFICHAGE DES RECORDS ---
-    # Limite de sécurité à 5000 lignes pour l'affichage de l'année complète
-    reponse = requete.limit(5000).execute()
-    df_resultat = pd.DataFrame(reponse.data)
-
-    if df_resultat.empty:
-        st.info("Aucun record trouvé pour cette combinaison de filtres.")
-    else:
-        st.subheader(f"📋 Records trouvés ({len(df_resultat)} match(s))")
-        
-        # Ordre d'affichage logique de tes colonnes (nouvelle structure incluse)
-        colonnes_ordonnees = [
-            "Annee", "Division", "Semaine", "Match", 
-            "Equipe1", "Joueur1", "ClassementJ1", 
-            "Resultat1.1", "Resultat1.2", "Resultat2.1", "Resultat2.2", 
-            "ClassementJ2", "Joueur2", "Equipe2", "MatchNonFF"
-        ]
-        
-        # Sécurité pour n'afficher que les colonnes réellement détectées
-        colonnes_visibles = [col for col in colonnes_ordonnees if col in df_resultat.columns]
-        
-        # Affichage du tableau principal
-        st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
+            # Structure d'affichage des colonnes
+            colonnes_ordonnees = [
+                "Annee", "Division", "Semaine", "Match", 
+                "Equipe1", "Joueur1", "ClassementJ1", 
+                "Resultat1.1", "Resultat1.2", "Resultat2.1", "Resultat2.2", 
+                "ClassementJ2", "Joueur2", "Equipe2", "MatchNonFF"
+            ]
+            colonnes_visibles = [col for col in colonnes_ordonnees if col in df_resultat.columns]
+            
+            # Affichage final
+            st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
 
 except Exception as e:
     st.error("Une erreur technique est survenue.")
