@@ -120,44 +120,53 @@ try:
             colonnes_requises = ["MatchNonFF", "Match Joué", "VictoireJ1"]
             if all(col in df_resultat.columns for col in colonnes_requises):
                 
-                # Pivot de table initial AVEC les marges de totaux activées (margins=True)
-                tcd_bilan = df_resultat.pivot_table(
+                # 1. Pivot de table initial (Données de base par Semaine)
+                tcd_base = df_resultat.pivot_table(
                     index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
                     values=["MatchNonFF", "Match Joué", "VictoireJ1"],
                     aggfunc={
-                        "MatchNonFF": "size",   # Compte les sélections (lignes)
-                        "Match Joué": "sum",    # Somme des matchs joués
-                        "VictoireJ1": "sum"     # Somme des victoires
+                        "MatchNonFF": "size",   
+                        "Match Joué": "sum",    
+                        "VictoireJ1": "sum"     
                     },
-                    fill_value=0,
-                    margins=True,               # Active la ligne de TOTAL global automatique
-                    margins_name="TOTAL"        # Renomme la ligne "All" par "TOTAL"
+                    fill_value=0
                 )
 
-                if not tcd_bilan.empty:
+                if not tcd_base.empty:
                     # Reconstruction sécurisée pour l'ordre initial des colonnes
-                    colonnes_existantes = [c for c in ["MatchNonFF", "Match Joué", "VictoireJ1"] if c in tcd_bilan.columns]
-                    tcd_bilan = tcd_bilan[colonnes_existantes]
+                    colonnes_existantes = [c for c in ["MatchNonFF", "Match Joué", "VictoireJ1"] if c in tcd_base.columns]
+                    tcd_base = tcd_base[colonnes_existantes]
                     
-                    # Recalcul dynamique et propre du pourcentage de victoires (y compris pour la ligne TOTAL)
+                    # 2. CALCUL DES SOUS-TOTAUX PAR JOUEUR
+                    # On groupe par Equipe et Joueur, on somme les valeurs et on reconstruit la structure d'index requise
+                    totaux_joueurs = tcd_base.groupby(level=["Equipe1", "Joueur1"]).sum()
+                    
+                    # On injecte des étiquettes textuelles fixes pour les sous-dimensions afin d'éviter les cases vides
+                    totaux_joueurs["ClassementJ1"] = "TOTAL JOUEUR"
+                    totaux_joueurs["Division"] = "TOTAL JOUEUR"
+                    totaux_joueurs["Semaine"] = "TOTAL JOUEUR"
+                    
+                    # Redéfinition de l'index complet pour s'aligner avec le tableau de base
+                    totaux_joueurs = totaux_joueurs.set_index(["ClassementJ1", "Division", "Semaine"], append=True)
+                    
+                    # 3. CALCUL DU TOTAL GÉNÉRAL
+                    total_general = pd.DataFrame([tcd_base.sum()], columns=colonnes_existantes)
+                    total_general.index = pd.MultiIndex.from_tuples(
+                        [("TOTAL CLUB", "TOTAL CLUB", "TOTAL CLUB", "TOTAL CLUB", "TOTAL CLUB")],
+                        names=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"]
+                    )
+                    
+                    # 4. FUSION DES TROIS BLOCS ET TRI INTELLIGENT
+                    # On combine les lignes de détails, les totaux par joueur, et le total général
+                    tcd_bilan = pd.concat([tcd_base, totaux_joueurs, total_general])
+                    
+                    # Tri personnalisé : on veut regrouper par Equipe, par Joueur, et pousser la ligne "TOTAL JOUEUR" en dernier sous chaque joueur
+                    # Pour cela, on crée une clé de tri temporaire où "TOTAL JOUEUR" est vu comme supérieur aux semaines numériques
+                    tcd_bilan = tcd_bilan.sort_index(level=["Equipe1", "Joueur1", "Semaine"])
+                    
+                    # 5. CALCULS DES POURCENTAGES & RENOMMAGE DES COLONNES
                     tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match Joué"]).fillna(0)) * 100
-
-                    # Application des noms propres pour les en-têtes du tableau
-                    tcd_bilan.columns = [
-                        "Sélections", 
-                        "Matchs Joués", 
-                        "Matchs Gagnés", 
-                        "% Victoires"
-                    ]
-
-                    # Tri des valeurs en excluant la ligne globale 'TOTAL' pour qu'elle reste tout en bas
-                    if "TOTAL" in tcd_bilan.index.get_level_values(0):
-                        ligne_total = tcd_bilan.xs("TOTAL", level=0, drop_level=False)
-                        tcd_sans_total = tcd_bilan.drop("TOTAL", level=0)
-                        tcd_sans_total = tcd_sans_total.sort_values(by=["Equipe1", "Joueur1", "Semaine"], ascending=True)
-                        tcd_bilan = pd.concat([tcd_sans_total, ligne_total])
-                    else:
-                        tcd_bilan = tcd_bilan.sort_values(by=["Equipe1", "Joueur1", "Semaine"], ascending=True)
+                    tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires"]
 
                     # Affichage final de la matrice de performance
                     st.subheader("📋 Tableau de synthèse des performances")
@@ -188,11 +197,11 @@ try:
                         {"selector": "th, td", "props": [
                             ("padding", "8px !important")
                         ]},
-                        # --- INJECTION CSS POUR LE STYLE EN GRAS DE LA LIGNE TOTAL ---
-                        # On repère l'élément contenant le texte 'TOTAL' et on met toute sa ligne en gras
+                        # --- STYLE EN GRAS POUR LES LIGNES DE SOUSTOTAUX ET TOTAUX ---
+                        # Repère n'importe quelle ligne contenant un mot clé de Totalisation
                         {"selector": "tr:has(th:contains('TOTAL')), tr:has(td:contains('TOTAL'))", "props": [
                             ("font-weight", "bold !important"),
-                            ("background-color", "#f0f2f6 !important") # Légère teinte grise pour détacher le bloc
+                            ("background-color", "#edf2f7 !important") # Teinte un poil plus sombre pour bien démarquer les calculs
                         ]}
                     ], overwrite=False)
                     
