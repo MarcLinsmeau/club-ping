@@ -111,7 +111,7 @@ try:
             st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
 
 
-            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) AVEC TRI PERSONNALISÉ ---
+            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) SANS COULEUR INUTILE ---
             st.markdown("---")
             st.header("📊 Tableau Croisé Dynamique : Bilan des Joueurs")
             st.write("Ce tableau récapitule les statistiques triées par Équipe, par Joueur et par Semaine.")
@@ -148,24 +148,19 @@ try:
                         "% Victoires"
                     ]
 
-                    # --- CODE DE TRI ICI ---
-                    # Puisque les colonnes de tri font partie de l'index des lignes (MultiIndex),
-                    # on spécifie leurs noms exacts. 'ascending=True' trie du plus petit au plus grand (A-Z ou Semaine 1 -> 2).
+                    # Tri du tableau par Équipe, Joueur puis Semaine
                     tcd_bilan = tcd_bilan.sort_values(by=["Equipe1", "Joueur1", "Semaine"], ascending=True)
 
-                    # Affichage final de la matrice de performance avec formatage et dégradé
+                    # Affichage final de la matrice de performance avec formatage et dégradé unique
                     st.subheader("📋 Tableau de synthèse des performances")
                     
+                    # Seule la colonne "% Victoires" reçoit le background_gradient
                     tcd_style = tcd_bilan.style.format({
                         "Sélections": "{:,.0f}",
                         "Matchs Joués": "{:,.0f}",
                         "Matchs Gagnés": "{:,.0f}",
                         "% Victoires": "{:.1f}%"
                     }).background_gradient(
-                        cmap="YlGnBu", 
-                        subset=["Sélections", "Matchs Joués", "Matchs Gagnés"], 
-                        axis=0
-                    ).background_gradient(
                         cmap="RdYlGn", 
                         subset=["% Victoires"],
                         vmin=0,
