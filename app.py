@@ -37,7 +37,7 @@ try:
 
 except Exception as e:
     st.error("Une erreur est survenue lors de la connexion.")
-    st.exception(e)import streamlit as st
+    st.exception(e) import streamlit as st
 import pandas as pd
 from st_supabase_connection import SupabaseConnection
 
