@@ -4,7 +4,7 @@ import pandas as pd
 import utils
 
 def execution_app(conn):
-    """Conteneur principal de la nouvelle sous-app : Analyse par Équipe, Joueurs et Classements."""
+    """Conteneur principal de la nouvelle sous-app (Trié par Joueur puis par Année)."""
     
     # --- ÉTAT DES SESSIONS & CALLBACKS DE FILTRES ---
     def reset_filtres():
@@ -50,17 +50,15 @@ def execution_app(conn):
         if df_res.empty:
             st.warning("⚠️ Aucun record trouvé pour cette combinaison précise.")
         else:
-            # Adaptation des colonnes requises à votre demande (Pas besoin de PointsJ1 ni MatchNonFF ici)
             colonnes_requises = ["Match", "VictoireJ1", "ClassementJ2"]
             if not all(c in df_res.columns for c in colonnes_requises):
                 st.error("Une ou plusieurs colonnes de calcul indispensables (Match, VictoireJ1, ClassementJ2) sont introuvables.")
                 st.stop()
                 
-            # --- CONFIGURATION DU TCD DEMANDÉ ---
-            # Index : Equipe1, Joueur1, Annee, ClassementJ1, ClassementJ2
-            # Valeurs initiales : Match (pour la taille/somme), VictoireJ1
+            # --- CONFIGURATION DU TCD : JOUEUR ET ANNÉE EN PREMIER ---
+            # Index réordonné : Joueur1 en premier, suivi de Annee
             tcd_bilan = df_res.pivot_table(
-                index=["Equipe1", "Joueur1", "Annee", "ClassementJ1", "ClassementJ2"], 
+                index=["Joueur1", "Annee", "Equipe1", "ClassementJ1", "ClassementJ2"], 
                 values=["Match", "VictoireJ1"], 
                 aggfunc={"Match": "size", "VictoireJ1": "sum"}, 
                 fill_value=0
@@ -69,22 +67,23 @@ def execution_app(conn):
             if tcd_bilan.empty:
                 st.info("Données insuffisantes pour générer ce tableau croisé.")
             else:
-                # Forçage du format String sur le niveau de l'index 'Annee' (situé à la position 2 désormais)
-                tcd_bilan.index = tcd_bilan.index.set_levels(tcd_bilan.index.levels[2].astype(str), level=2)
+                # Forçage du format String sur le niveau de l'index 'Annee' (situé à la position 1 désormais)
+                tcd_bilan.index = tcd_bilan.index.set_levels(tcd_bilan.index.levels[1].astype(str), level=1)
                 
-                # Tri par Joueur puis par Année comme précédemment mis en place
+                # --- APPLICATION DU TRI ---
+                # Tri avec priorité absolue au Joueur puis à l'Année
                 tcd_bilan = tcd_bilan.sort_index(level=["Joueur1", "Annee"])
                 
-                # Calcul de la colonne réclamée : % Victoires
+                # Calcul du % de Victoires
                 tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
                 
-                # Réorganisation et renommage des colonnes selon vos exigences précises
+                # Réorganisation finale des colonnes de données
                 tcd_bilan = tcd_bilan[["Match", "VictoireJ1", "Taux Victoires"]]
                 tcd_bilan.columns = ["Matchs Joués", "Victoires", "% Victoire"]
 
                 st.subheader(f"📋 Tableau de synthèse analytique ({len(df_res)} match(s) analysé(s))")
                 
-                # Génération HTML de la table avec application du dégradé sur la performance
+                # Génération du rendu HTML propre
                 html_table = (
                     tcd_bilan.style.format({"Matchs Joués": "{:,.0f}", "Victoires": "{:,.0f}", "% Victoire": "{:.1f}%"})
                     .background_gradient(cmap="RdYlGn", subset=["% Victoire"], vmin=0, vmax=100, axis=0)
