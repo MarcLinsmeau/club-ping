@@ -1,4 +1,4 @@
-# NomDeVotreNouvelleSousApp.py
+# StatsJoueursAdversaire.py
 import streamlit as st
 import pandas as pd
 import utils
@@ -49,7 +49,7 @@ def execution_app(conn):
             st.warning("⚠️ Aucun record trouvé.")
         else:
             # --- CONFIGURATION DU TCD ---
-            # Index : equipe, joueur, année, classement, classement joueur2
+            # Index demandé : Equipe1, Joueur1, Annee, ClassementJ1, ClassementJ2
             tcd_bilan = df_res.pivot_table(
                 index=["Equipe1", "Joueur1", "Annee", "ClassementJ1", "ClassementJ2"], 
                 values=["Match", "VictoireJ1"], 
@@ -57,19 +57,18 @@ def execution_app(conn):
                 fill_value=0
             )
 
-            # Forçage année en string
+            # Forçage année en string pour l'affichage
             tcd_bilan.index = tcd_bilan.index.set_levels(tcd_bilan.index.levels[2].astype(str), level=2)
             
-            # Tri par Joueur (niveau 1) puis par Année (niveau 2)
-            # Note : il faut s'assurer de l'ordre de l'index dans le pivot pour le tri
+            # Tri par Joueur puis par Année
             tcd_bilan = tcd_bilan.reset_index()
             tcd_bilan = tcd_bilan.sort_values(by=["Joueur1", "Annee"])
             tcd_bilan = tcd_bilan.set_index(["Equipe1", "Joueur1", "Annee", "ClassementJ1", "ClassementJ2"])
             
-            # Calcul du %
+            # Calcul du % Victoire
             tcd_bilan["% Victoire"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
             
-            # Renommage colonnes
+            # Sélection et renommage des colonnes
             tcd_bilan = tcd_bilan[["Match", "VictoireJ1", "% Victoire"]]
             tcd_bilan.columns = ["Matchs Joués", "Victoires", "% Victoire"]
 
