@@ -14,6 +14,7 @@ from st_supabase_connection import SupabaseConnection
 st.set_page_config(page_title="Ping-Point - Recherche", page_icon="🏓", layout="wide")
 
 # Détection dynamique de l'application cible via les paramètres d'URL
+# Par défaut, si aucun mode n'est spécifié, on charge "StatsJoueursSemaine"
 mode = st.query_params.get("mode", "StatsJoueursSemaine")
 st.title(f"🏓 Recherche Avancée des Statistiques - {mode}")
 
@@ -21,15 +22,14 @@ try:
     # Initialisation unique de la connexion pour tout l'écosystème d'applications
     conn = st.connection("supabase", type=SupabaseConnection)
 
-    # --- ROUTAGE DES PAGES ---
+    # --- ROUTAGE ET AIGUILLAGE DES SOU-APPS ---
     if mode == "StatsJoueursSemaine":
-        # Importation dynamique et exécution de l'application dédiée
         from StatsJoueursSemaine import execution_app
         execution_app(conn)
         
-    elif mode == "UneAutreAppSaison":
-        # Exemple de structure pour vos futures extensions d'applications
-        st.info("Bienvenue sur la future application alternative.")
+    elif mode == "StatsJoueursAnnee":
+        from StatsJoueursAnnee import execution_app
+        execution_app(conn)
         
     else:
         st.error(f"Le mode demandé '{mode}' est introuvable ou non configuré.")
