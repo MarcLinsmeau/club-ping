@@ -23,8 +23,8 @@ try:
 
     @st.cache_data(ttl=300)
     def charger_joueurs(annee, liste_clubs):
-        # OPTIMISATION : Un seul appel RPC global en utilisant le filtre `.in_` sur les clubs
-        res = conn.client.table("test").select("Joueur1").eq("Annee", annee).in_("Equipe1", liste_clubs).execute()
+        # Un seul appel RPC global en utilisant le filtre `.in_` sur les clubs
+        res = conn.table("test").select("Joueur1").eq("Annee", annee).in_("Equipe1", liste_clubs).execute()
         return sorted(list({row["Joueur1"] for row in res.data if row.get("Joueur1")})) if res.data else []
 
     # --- CALLBACKS ET ETAT DE SESSIONS ---
@@ -90,22 +90,44 @@ try:
                     values=colonnes_requises, 
                     aggfunc={"MatchNonFF": "size", "Match": "size", "VictoireJ1": "sum", "PointsJ1": "sum"}, 
                     fill_value=0
-                ).reindex(columns=colonnes_requises) # Force l'ordre natif des colonnes
+                ).reindex(columns=colonnes_requises)
 
                 if not tcd_base.empty:
                     tcd_base.index = tcd_base.index.set_levels(tcd_base.index.levels[4].astype(str), level=4)
                     
-                    # 2. Sous-totaux par joueur
-                    totaux = tcd_base.groupby(level=["Equipe1", "Joueur1"]).sum()
-                    totaux["ClassementJ1"], totaux["Division"], totaux["Semaine"] = "Total Saison", "", ""
-                    totaux = totaux.set_index(["ClassementJ1", "Division", "Semaine"], append=True)
-                    
-                    # 3. Fusion et Tri Chronologique (Gestion de la ligne "Total Saison" à -1)
+                    # Fonction utilitaire pour le tri chronologique des semaines
                     def parse_semaine(val):
                         if val == "": return -1
                         digits = "".join([c for c in str(val) if c.isdigit()])
                         return int(digits) if digits else 0
 
+                    # --- AJOUT DU GRAPHIQUE (SI UN SEUL JOUEUR SÉLECTIONNÉ) ---
+                    if len(st.session_state.joueurs_choisis) == 1:
+                        st.subheader(f"📈 Évolution des points par semaine — {st.session_state.joueurs_choisis[0]}")
+                        
+                        # On prépare une copie des données sans la ligne de résumé global
+                        df_graph = tcd_base.reset_index()
+                        
+                        # Ajout d'une clé numérique temporaire pour forcer le tri chronologique des semaines sur l'axe X
+                        df_graph["semaine_num"] = df_graph["Semaine"].map(parse_semaine)
+                        df_graph = df_graph.sort_values(by="semaine_num")
+                        
+                        # Affichage du graphique linéaire
+                        st.line_chart(
+                            data=df_graph,
+                            x="Semaine",
+                            y="PointsJ1",
+                            color="#22c55e", # Vert thématique ping
+                            use_container_width=True
+                        )
+                        st.markdown("---")
+
+                    # 2. Sous-totaux par joueur (pour le tableau)
+                    totaux = tcd_base.groupby(level=["Equipe1", "Joueur1"]).sum()
+                    totaux["ClassementJ1"], totaux["Division"], totaux["Semaine"] = "Total Saison", "", ""
+                    totaux = totaux.set_index(["ClassementJ1", "Division", "Semaine"], append=True)
+                    
+                    # 3. Fusion et Tri Chronologique
                     tcd_bilan = pd.concat([tcd_base, totaux]).sort_index(
                         level=["Equipe1", "Joueur1", "Semaine"],
                         key=lambda x: x.map(parse_semaine) if x.name == "Semaine" else x
@@ -116,7 +138,7 @@ try:
                     tcd_bilan = tcd_bilan[["MatchNonFF", "Match", "VictoireJ1", "Taux Victoires", "PointsJ1"]]
                     tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés J1"]
 
-                    # 5. Injection de Styles CSS avancés (Mise en gras sans rupture du dégradé)
+                    # 5. Injection de Styles CSS avancés
                     def injection_style_ligne(row):
                         if "Total Saison" in row.name:
                             return ["font-weight: bold !important;" if c == "% Victoires" else "font-weight: bold !important; background-color: #edf2f7 !important;" for c in row.index]
