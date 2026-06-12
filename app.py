@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import altair as alt
 from st_supabase_connection import SupabaseConnection
 
 # Configuration initiale de la page
@@ -101,7 +102,7 @@ try:
                         digits = "".join([c for c in str(val) if c.isdigit()])
                         return int(digits) if digits else 0
 
-                    # --- BLOC GRAPHES RE-INDENTÉ PRÉCISÉMENT ---
+                    # --- GRAPHQUES COMPLETS AVEC VALEURS PERMANENTES (ALTAIR) ---
                     if len(st.session_state.joueurs_choisis) == 1:
                         st.subheader(f"📊 Analyse Graphique — {st.session_state.joueurs_choisis[0]}")
                         
@@ -109,31 +110,54 @@ try:
                         df_graph = tcd_base.reset_index()
                         df_graph["semaine_num"] = df_graph["Semaine"].map(parse_semaine)
                         df_graph = df_graph.sort_values(by="semaine_num")
-                        
-                        # Calcul du cumul
                         df_graph["Points Cumulés"] = df_graph["PointsJ1"].cumsum()
                         
-                        # Graphique 1 : Histogramme de la semaine
+                        # --- GRAPHE 1 : Histogramme des semaines ---
                         st.write("**Points gagnés / perdus par semaine**")
-                        st.bar_chart(
-                            data=df_graph,
-                            x="Semaine",
-                            y="PointsJ1",
-                            color="#22c55e", 
-                            use_container_width=True
+                        
+                        barres = alt.Chart(df_graph).mark_bar(color="#22c55e").encode(
+                            x=alt.X("Semaine:N", sort=alt.SortField(field="semaine_num", order="ascending")),
+                            y=alt.Y("PointsJ1:Q")
                         )
+                        
+                        labels_barres = alt.Chart(df_graph).mark_text(
+                            dy=alt.expr(alt.datum.PointsJ1 >= 0, -10, 10), # Décale le texte au-dessus si positif, en-dessous si négatif
+                            align="center",
+                            fontWeight="bold"
+                        ).encode(
+                            x=alt.X("Semaine:N", sort=alt.SortField(field="semaine_num", order="ascending")),
+                            y=alt.Y("PointsJ1:Q"),
+                            text=alt.Text("PointsJ1:Q", format="+d") # Format + ou - devant le chiffre
+                        )
+                        
+                        st.altair_chart(barres + labels_barres, use_container_width=True)
                         
                         st.write("") 
                         
-                        # Graphique 2 : Courbe du cumul (placée en-dessous)
+                        # --- GRAPHE 2 : Courbe du cumul ---
                         st.write("**Évolution du cumul sur la saison**")
-                        st.line_chart(
-                            data=df_graph,
-                            x="Semaine",
-                            y="Points Cumulés",
-                            color="#3b82f6", 
-                            use_container_width=True
+                        
+                        courbe = alt.Chart(df_graph).mark_line(color="#3b82f6", strokeWidth=3).encode(
+                            x=alt.X("Semaine:N", sort=alt.SortField(field="semaine_num", order="ascending")),
+                            y=alt.Y("Points Cumulés:Q")
                         )
+                        
+                        points = alt.Chart(df_graph).mark_circle(color="#3b82f6", size=60).encode(
+                            x=alt.X("Semaine:N", sort=alt.SortField(field="semaine_num", order="ascending")),
+                            y=alt.Y("Points Cumulés:Q")
+                        )
+                        
+                        labels_courbe = alt.Chart(df_graph).mark_text(
+                            dy=-12, # Décale le texte un peu au-dessus du point
+                            align="center",
+                            fontWeight="bold"
+                        ).encode(
+                            x=alt.X("Semaine:N", sort=alt.SortField(field="semaine_num", order="ascending")),
+                            y=alt.Y("Points Cumulés:Q"),
+                            text=alt.Text("Points Cumulés:Q", format="d")
+                        )
+                        
+                        st.altair_chart(courbe + points + labels_courbe, use_container_width=True)
                         st.markdown("---")
 
                     # 2. Sous-totaux par joueur
