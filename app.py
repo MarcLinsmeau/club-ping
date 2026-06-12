@@ -30,6 +30,10 @@ try:
     elif mode == "StatsJoueursAnnee":
         from StatsJoueursAnnee import execution_app
         execution_app(conn)
+    
+    elif mode == "StatsJoueursAdversaire":
+        from StatsJoueursAdversaire import execution_app
+        execution_app(conn)
         
     elif mode == "NomDeVotreNouvelleSousApp":  # ← Ajoutez votre nouveau mode ici
         from NomDeVotreNouvelleSousApp import execution_app
