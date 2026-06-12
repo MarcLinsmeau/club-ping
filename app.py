@@ -101,7 +101,7 @@ try:
                         digits = "".join([c for c in str(val) if c.isdigit()])
                         return int(digits) if digits else 0
 
-                    # --- MODIFICATION ICI : DEUX GRAPHQUES CÔTE À CÔTE ---
+                    # --- AJOUT DES GRAPHQUES EMPILÉS (UN EN-DESSOUS DE L'AUTRE) ---
                     if len(st.session_state.joueurs_choisis) == 1:
                         st.subheader(f"📊 Analyse Graphique — {st.session_state.joueurs_choisis[0]}")
                         
@@ -113,28 +113,27 @@ try:
                         # Calcul du cumul
                         df_graph["Points Cumulés"] = df_graph["PointsJ1"].cumsum()
                         
-                        # Création de deux colonnes Streamlit (50% / 50%)
-                        col1, col2 = st.columns(2)
+                        # Graphique 1 : Histogramme de la semaine
+                        st.write("**Points gagnés / perdus par semaine**")
+                        st.bar_chart(
+                            data=df_graph,
+                            x="Semaine",
+                            y="PointsJ1",
+                            color="#22c55e", # Vert pour les barres
+                            use_container_width=True
+                        )
                         
-                        with col1:
-                            st.write("**Points gagnés / perdus par semaine**")
-                            st.bar_chart(
-                                data=df_graph,
-                                x="Semaine",
-                                y="PointsJ1",
-                                color="#22c55e", # Vert pour les barres de la semaine
-                                use_container_width=True
-                            )
-                            
-                        with col2:
-                            st.write("**Évolution du cumul sur la saison**")
-                            st.line_chart(
-                                data=df_graph,
-                                x="Semaine",
-                                y="Points Cumulés",
-                                color="#3b82f6", # Bleu pour la courbe cumulative
-                                use_container_width=True
-                            )
+                        st.write("") # Petit espace vertical de respiration
+                        
+                        # Graphique 2 : Courbe du cumul (placée en-dessous)
+                        st.write("**Évolution du cumul sur la saison**")
+                        st.line_chart(
+                            data=df_graph,
+                            x="Semaine",
+                            y="Points Cumulés",
+                            color="#3b82f6", # Bleu pour la courbe
+                            use_container_width=True
+                        )
                         st.markdown("---")
 
                     # 2. Sous-totaux par joueur
