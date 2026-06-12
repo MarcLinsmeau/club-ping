@@ -101,28 +101,25 @@ try:
                         digits = "".join([c for c in str(val) if c.isdigit()])
                         return int(digits) if digits else 0
 
-                    # --- AJOUT DU GRAPHIQUE (SI UN SEUL JOUEUR SÉLECTIONNÉ) ---
+                    # --- HISTOGRAMME (SI UN SEUL JOUEUR SÉLECTIONNÉ) ---
                     if len(st.session_state.joueurs_choisis) == 1:
-                        st.subheader(f"📈 Évolution des points par semaine — {st.session_state.joueurs_choisis[0]}")
+                        st.subheader(f"📊 Répartition des points par semaine — {st.session_state.joueurs_choisis[0]}")
                         
-                        # On prépare une copie des données sans la ligne de résumé global
                         df_graph = tcd_base.reset_index()
-                        
-                        # Ajout d'une clé numérique temporaire pour forcer le tri chronologique des semaines sur l'axe X
                         df_graph["semaine_num"] = df_graph["Semaine"].map(parse_semaine)
                         df_graph = df_graph.sort_values(by="semaine_num")
                         
-                        # Affichage du graphique linéaire
-                        st.line_chart(
+                        # Changement pour un graphique en barres (histogramme)
+                        st.bar_chart(
                             data=df_graph,
                             x="Semaine",
                             y="PointsJ1",
-                            color="#22c55e", # Vert thématique ping
+                            color="#22c55e", 
                             use_container_width=True
                         )
                         st.markdown("---")
 
-                    # 2. Sous-totaux par joueur (pour le tableau)
+                    # 2. Sous-totaux par joueur
                     totaux = tcd_base.groupby(level=["Equipe1", "Joueur1"]).sum()
                     totaux["ClassementJ1"], totaux["Division"], totaux["Semaine"] = "Total Saison", "", ""
                     totaux = totaux.set_index(["ClassementJ1", "Division", "Semaine"], append=True)
