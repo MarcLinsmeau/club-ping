@@ -4,14 +4,14 @@ import pandas as pd
 import utils
 
 def execution_app(conn):
-    """Conteneur principal de l'application de statistiques annuelles des joueurs (Toutes années confondues)."""
+    """Conteneur principal de l'application de statistiques annuelles des joueurs (Trié par Année)."""
     
     # --- ÉTAT DES SESSIONS & CALLBACKS DE FILTRES ---
     def reset_filtres():
         """Réinitialise le filtre descendant des joueurs lorsque les clubs changent."""
         st.session_state.joueurs_choisis = []
 
-    # Initialisation des variables de session indispensables (sans la clé annee_choisie)
+    # Initialisation des variables de session indispensables
     for key, val in [("clubs_choisis", []), ("joueurs_choisis", [])]:
         if key not in st.session_state:
             st.session_state[key] = val
@@ -19,14 +19,14 @@ def execution_app(conn):
     # --- INTERFACE UTILISATEUR : FILTRES ACTIFS ---
     st.subheader("🔍 Filtres de sélection (Multi-choix tactiles)")
     
-    # Nouvelle Étape 1 : Choix des clubs parmi TOUS les clubs de la base
+    # Étape 1 : Choix des clubs parmi TOUS les clubs de la base
     st.write("**🏢 1. Sélectionnez un ou plusieurs Clubs (Equipe 1) :**")
     st.segmented_control(
         "Clubs", options=utils.charger_clubs_uniques(conn), 
         key="clubs_choisis", selection_mode="multi", on_change=reset_filtres, label_visibility="collapsed"
     )
 
-    # Nouvelle Étape 2 : Choix des joueurs (dépend uniquement des clubs sélectionnés, toutes années confondues)
+    # Étape 2 : Choix des joueurs (dépend uniquement des clubs sélectionnés)
     if st.session_state.clubs_choisis:
         st.markdown("---")
         st.write("**👤 2. Sélectionnez un ou plusieurs Joueurs (Joueur 1) :**")
@@ -40,7 +40,7 @@ def execution_app(conn):
     if not st.session_state.clubs_choisis:
         st.info("💡 En attente de vos critères : Veuillez cocher au moins un **Club** pour commencer.")
     else:
-        # Requête Supabase globale : on filtre uniquement sur les clubs et optionnellement les joueurs
+        # Requête Supabase globale
         req = conn.table("test").select("*").in_("Equipe1", st.session_state.clubs_choisis)
         if st.session_state.joueurs_choisis:
             req = req.in_("Joueur1", st.session_state.joueurs_choisis)
@@ -55,7 +55,7 @@ def execution_app(conn):
                 st.error("Une ou plusieurs colonnes de calcul indispensables sont introuvables en base de données.")
                 st.stop()
                 
-            # --- CONFIGURATION DU TCD SANS FILTRE D'ANNÉE ---
+            # --- CONFIGURATION DU TCD ---
             tcd_bilan = df_res.pivot_table(
                 index=["Equipe1", "Joueur1", "Annee", "ClassementJ1"], 
                 values=colonnes_requises, 
@@ -69,8 +69,9 @@ def execution_app(conn):
                 # Forçage du format String sur le niveau de l'index 'Annee'
                 tcd_bilan.index = tcd_bilan.index.set_levels(tcd_bilan.index.levels[2].astype(str), level=2)
                 
-                # Tri de l'index par Équipe, Joueur, puis Année chronologique
-                tcd_bilan = tcd_bilan.sort_index(level=["Equipe1", "Joueur1", "Annee"])
+                # --- MODIFICATION DU TRI : Priorité à l'Année ---
+                # On trie d'abord par 'Annee', puis par 'Equipe1', puis par 'Joueur1'
+                tcd_bilan = tcd_bilan.sort_index(level=["Annee", "Equipe1", "Joueur1"])
                 
                 # Calcul des performances
                 tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
