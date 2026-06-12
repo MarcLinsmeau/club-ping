@@ -4,13 +4,13 @@ import altair as alt
 import re
 from st_supabase_connection import SupabaseConnection
 
-# 1. Récupérer le paramètre 'mode' depuis l'URL (ex: https://monapp.streamlit.app/?mode=ping)
+# Récupérer le paramètre 'mode' depuis l'URL (ex: https://monapp.streamlit.app/?mode=ping)
 # Si aucun paramètre n'est fourni, on définit un mode par défaut
-mode = st.query_params.get("mode", "Marc")
+mode = st.query_params.get("mode", "StatsJoueursSemaine")
 
 # Configuration initiale de la page
-st.set_page_config(page_title="Ping Club - Recherche", page_icon="🏓", layout="wide")
-st.title(f"🏓 Recherche Avancée des Matchs - {mode}")
+st.set_page_config(page_title="Ping-Point - Recherche", page_icon="🏓", layout="wide")
+st.title(f"🏓 Recherche Avancée des Statistiques - {mode}")
 
 try:
     # 1. Connexion à Supabase
