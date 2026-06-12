@@ -3,12 +3,8 @@ import streamlit as st
 import pandas as pd
 import utils
 
-# Configuration pour utiliser toute la largeur de l'écran
-# À placer une seule fois si ce n'est pas déjà fait dans votre page principale
-# st.set_page_config(layout="wide")
-
 def execution_app(conn):
-    """Conteneur : Semaine (index), Joueurs (colonnes), 4 métriques ordonnées."""
+    """Conteneur : Semaine (index), Joueurs (colonnes), 4 métriques ordonnées + Totaux."""
     
     # --- ÉTAT DES SESSIONS ---
     for key, val in [("annee_choisie", None), ("club_choisi", None), ("division_choisie", None)]:
@@ -64,21 +60,26 @@ def execution_app(conn):
             # 2. Récupération et TRI ALPHABÉTIQUE des joueurs
             joueurs = sorted(df_g.index.get_level_values("Joueur1").unique())
             
-            # 3. Construction du tableau avec ordre forcé des métriques
+            # 3. Construction du tableau
             df_list = []
             for joueur in joueurs:
                 df_j = df_g.xs(joueur, level="Joueur1")[["Sélections", "Matchs_Joués", "Victoires", "Points"]]
                 df_j.columns = pd.MultiIndex.from_product([[joueur], df_j.columns])
                 df_list.append(df_j)
             
-            # 4. Concaténation, remplacement des vides par 0, et tri chronologique
             df_pivot = pd.concat(df_list, axis=1).fillna(0).sort_index(key=lambda x: x.map(utils.parse_semaine))
+
+            # 4. Ajout de la ligne TOTAL
+            # On calcule la somme par colonne
+            total_row = pd.DataFrame(df_pivot.sum()).T
+            total_row.index = ["Total"]
+            df_pivot = pd.concat([df_pivot, total_row])
 
             st.subheader(f"📋 Synthèse hebdomadaire ({len(df_res)} match(s))")
             
             # 5. Affichage final
-            # Calcul de la hauteur pour minimiser le scroll (ex: 35px par ligne)
-            hauteur_calc = (len(df_pivot) + 2) * 35 
+            # On ajoute un peu de hauteur pour inclure la ligne Total
+            hauteur_calc = (len(df_pivot) + 1) * 35 
             st.dataframe(
                 df_pivot, 
                 use_container_width=True, 
