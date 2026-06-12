@@ -4,7 +4,7 @@ import pandas as pd
 import utils
 
 def execution_app(conn):
-    """Conteneur : Synthèse hebdomadaire avec cellules vides, totaux et quadrillage."""
+    """Conteneur : Synthèse hebdomadaire avec cellules vides, entiers et quadrillage."""
     
     # --- ÉTAT DES SESSIONS & INTERFACE ---
     for key, val in [("annee_choisie", None), ("club_choisi", None), ("division_choisie", None)]:
@@ -52,12 +52,12 @@ def execution_app(conn):
             df_pivot = pd.concat(df_list, axis=1).fillna(0)
             df_pivot = df_pivot.sort_index(level="Semaine", key=lambda x: x.map(utils.parse_semaine))
 
-            # 3. Calcul du total (avant de remplacer les 0 par des vides)
-            total_row = pd.DataFrame(df_pivot.sum()).T
-            total_row.index = pd.MultiIndex.from_tuples([("Total", "")], names=["Semaine", "Equipe2"])
+            # 3. Conversion en entier et remplacement des 0 par des vides
+            df_pivot = df_pivot.astype(int).replace(0, "")
             
-            # 4. Remplacement des 0 par "" (vides)
-            df_pivot = df_pivot.replace(0, "")
+            # 4. Calcul du total (on utilise le remplacement temporaire pour sommer)
+            total_row = pd.DataFrame(df_pivot.replace("", 0).sum()).T.astype(int)
+            total_row.index = pd.MultiIndex.from_tuples([("Total", "")], names=["Semaine", "Equipe2"])
             
             # 5. Ajout de la ligne Total
             df_pivot = pd.concat([df_pivot, total_row])
