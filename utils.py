@@ -5,33 +5,33 @@ import streamlit as st
 # --- FONCTIONS DE DONNÉES AVEC MISE EN CACHE ---
 
 @st.cache_data(ttl=300)
-def charger_annees(conn):
+def charger_annees(_conn):
     """Récupère la liste de toutes les années uniques disponibles en base."""
-    res = conn.client.rpc("obtenir_annees_uniques").execute()
+    res = _conn.client.rpc("obtenir_annees_uniques").execute()
     return [str(row["annee"]) for row in (res.data or [])]
 
 @st.cache_data(ttl=300)
-def charger_clubs_uniques(conn):
+def charger_clubs_uniques(_conn):
     """Récupère la liste de tous les clubs uniques (sans filtre d'année)."""
-    res = conn.client.rpc("obtenir_clubs_uniques").execute()
+    res = _conn.client.rpc("obtenir_clubs_uniques").execute()
     return [row["club"] for row in (res.data or [])]
 
 @st.cache_data(ttl=300)
-def charger_clubs_par_annee(conn, annee):
+def charger_clubs_par_annee(_conn, annee):
     """Récupère les clubs ayant participé à une année spécifique."""
-    res = conn.client.rpc("obtenir_clubs_par_annee", {"annee_recherche": annee}).execute()
+    res = _conn.client.rpc("obtenir_clubs_par_annee", {"annee_recherche": annee}).execute()
     return [row["club"] for row in (res.data or [])]
 
 @st.cache_data(ttl=300)
-def charger_joueurs_par_clubs(conn, liste_clubs):
+def charger_joueurs_par_clubs(_conn, liste_clubs):
     """Extrait et trie la liste des joueurs selon une liste de clubs."""
-    res = conn.table("test").select("Joueur1").in_("Equipe1", liste_clubs).execute()
+    res = _conn.table("test").select("Joueur1").in_("Equipe1", liste_clubs).execute()
     return sorted(list({row["Joueur1"] for row in (res.data or []) if row.get("Joueur1")}))
 
 @st.cache_data(ttl=300)
-def charger_joueurs_complet(conn, annee, liste_clubs):
+def charger_joueurs_complet(_conn, annee, liste_clubs):
     """Extrait et trie la liste des joueurs selon l'année et les clubs."""
-    res = conn.table("test").select("Joueur1").eq("Annee", annee).in_("Equipe1", liste_clubs).execute()
+    res = _conn.table("test").select("Joueur1").eq("Annee", annee).in_("Equipe1", liste_clubs).execute()
     return sorted(list({row["Joueur1"] for row in (res.data or []) if row.get("Joueur1")}))
 
 # --- FONCTION UTILITAIRE DE PARSING ---
