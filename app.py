@@ -84,11 +84,11 @@ try:
             colonnes_requises = ["MatchNonFF", "Match", "VictoireJ1", "PointsJ1"]
             if all(c in df_res.columns for c in colonnes_requises):
                 
-                # 1. Pivot de Table initial
+                # 1. Pivot de Table initial (CORRIGÉ ICI : Remplacement de , par :)
                 tcd_base = df_res.pivot_table(
                     index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
                     values=colonnes_requises, 
-                    aggfunc={"MatchNonFF": "size", "Match", "size", "VictoireJ1": "sum", "PointsJ1": "sum"}, 
+                    aggfunc={"MatchNonFF": "size", "Match": "size", "VictoireJ1": "sum", "PointsJ1": "sum"}, 
                     fill_value=0
                 ).reindex(columns=colonnes_requises)
 
@@ -101,7 +101,7 @@ try:
                         digits = "".join([c for c in str(val) if c.isdigit()])
                         return int(digits) if digits else 0
 
-                    # --- AJOUT DES VALEURS SUR LES GRAPHQUES ---
+                    # --- GRAPHQUES ---
                     if len(st.session_state.joueurs_choisis) == 1:
                         st.subheader(f"📊 Analyse Graphique — {st.session_state.joueurs_choisis[0]}")
                         
@@ -121,7 +121,7 @@ try:
                             y="PointsJ1",
                             color="#22c55e", 
                             use_container_width=True,
-                            show_label=True # OPTIMISATION : Affiche la valeur sur/au-dessus de chaque barre
+                            label="PointsJ1" # Active proprement les étiquettes de données
                         )
                         
                         st.write("") 
@@ -134,7 +134,7 @@ try:
                             y="Points Cumulés",
                             color="#3b82f6", 
                             use_container_width=True,
-                            show_label=True # OPTIMISATION : Affiche la valeur au niveau de chaque nœud de la courbe
+                            label="Points Cumulés" # Active proprement les étiquettes de données
                         )
                         st.markdown("---")
 
