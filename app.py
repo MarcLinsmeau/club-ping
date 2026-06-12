@@ -162,6 +162,14 @@ try:
                     tcd_bilan = tcd_bilan[["MatchNonFF", "Match", "VictoireJ1", "Taux Victoires", "PointsJ1"]]
                     tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés J1"]
 
+                    # --- STRATÉGIE DE MISE EN GRAS COMPLÈTE DES LIGNES ---
+                    # Cette fonction cible les valeurs numériques de la ligne "Total Saison"
+                    def styliser_ligne_total(row):
+                        # On vérifie si "Total Saison" est présent dans le tuple de l'index (niveau 2 : ClassementJ1)
+                        if "Total Saison" in row.name:
+                            return ["font-weight: bold !important; background-color: #edf2f7 !important;"] * len(row)
+                        return [""] * len(row)
+
                     # Affichage final stylisé
                     st.subheader(f"📋 Tableau de synthèse des performances ({len(df_resultat)} match(s) analysé(s))")
                     
@@ -177,6 +185,9 @@ try:
                         vmin=0,
                         vmax=100,
                         axis=0
+                    ).apply(
+                        styliser_ligne_total, 
+                        axis=1
                     ).set_table_styles([
                         {"selector": "th, td, th.row_heading, th.col_heading, td.data, .blank", "props": [
                             ("vertical-align", "top !important"),
@@ -188,8 +199,8 @@ try:
                         {"selector": "th, td", "props": [
                             ("padding", "8px !important")
                         ]},
-                        # CORRECTION ICI : Recherche de la chaîne 'Total Saison' dans les cellules d'en-tête et de données
-                        {"selector": "tr:has(th:contains('Total Saison')), tr:has(td:contains('Total Saison'))", "props": [
+                        # Cette règle CSS force désormais le gras également sur les en-têtes textuels (à gauche) de la ligne concernée
+                        {"selector": "tr:has(th:contains('Total Saison')) th", "props": [
                             ("font-weight", "bold !important"),
                             ("background-color", "#edf2f7 !important")
                         ]}
