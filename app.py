@@ -26,65 +26,87 @@ try:
         return [row["joueur"] for row in res.data] if res.data else []
 
 
-    # --- INTERFACE ET FILTRES EN POPOVER (SANS CLAVIER / SANS TEXTE) ---
+    # --- INITIALISATION DU STATE (Mémoire de l'application) ---
+    if "annee" not in st.session_state:
+        st.session_state.annee = "--- Choisir une année ---"
+    if "club" not in st.session_state:
+        st.session_state.club = "--- Choisir un club ---"
+    if "joueur" not in st.session_state:
+        st.session_state.joueur = "Tous les joueurs"
+
+    # --- PANNEL DE CONFIGURATION DES FILTRES ---
     st.subheader("🔍 Filtres de sélection")
-    col1, col2, col3 = st.columns(3)
-
-    # 1. FILTRE ANNÉE
-    liste_annees = charger_annees()
     
-    with col1:
-        # Un popover agit comme un bouton de menu déroulant propre
-        with st.popover("📅 1. Choisir une Année", use_container_width=True):
-            annee_choisie = st.radio(
-                "Sélectionnez l'année :",
-                options=["--- Choisir une année ---"] + list(liste_annees),
-                index=0
+    # Étape 1 : Choisir l'année en premier pour charger le reste
+    liste_annees = charger_annees()
+    annee_selectionnee = st.selectbox(
+        "📅 Étape 1 : Choisir une Année",
+        options=["--- Choisir une année ---"] + list(liste_annees),
+        key="annee_select"
+    )
+    
+    if annee_selectionnee != "--- Choisir une année ---":
+        st.session_state.annee = annee_selectionnee
+        
+        # Formulaire global pour le Club et le Joueur (Évite les rafraîchissements partiels gênants)
+        with st.form("formulaire_filtres"):
+            st.write("### 🎛️ Ajuster les filtres de recherche")
+            
+            # Chargement des clubs pour l'année choisie
+            liste_clubs = charger_clubs(st.session_state.annee)
+            club_index = 0
+            if st.session_state.club in liste_clubs:
+                club_index = liste_clubs.index(st.session_state.club) + 1
+                
+            club_choisi = st.radio(
+                "🏢 Étape 2 : Sélectionner le Club (Equipe 1)",
+                options=["--- Choisir un club ---"] + list(liste_clubs),
+                index=club_index
             )
-
-    annee_valide = annee_choisie != "--- Choisir une année ---"
-
-    # 2. FILTRE CLUB
-    with col2:
-        if annee_valide:
-            liste_clubs = charger_clubs(annee_choisie)
-            with st.popover(f"🏢 2. Club : {club_choisi if 'club_choisi' in locals() and club_choisi != '--- Choisir un club ---' else 'Sélectionner'}", use_container_width=True):
-                club_choisi = st.radio(
-                    "Sélectionnez le club (Equipe 1) :",
-                    options=["--- Choisir un club ---"] + list(liste_clubs),
-                    index=0
-                )
-        else:
-            st.button("🏢 2. Veuillez d'abord choisir une année", disabled=True, use_container_width=True)
-            club_choisi = "--- Choisir un club ---"
-
-    club_valide = annee_valide and club_choisi != "--- Choisir un club ---"
-
-    # 3. FILTRE JOUEUR
-    with col3:
-        if club_valide:
-            liste_joueurs = charger_joueurs(annee_choisie, club_choisi)
-            with st.popover(f"👤 3. Joueur : {joueur_choisi if 'joueur_choisi' in locals() else 'Tous'}", use_container_width=True):
+            
+            # Chargement dynamique des joueurs si un club est coché
+            if club_choisi != "--- Choisir un club ---":
+                liste_joueurs = charger_joueurs(st.session_state.annee, club_choisi)
+                joueur_index = 0
+                if st.session_state.joueur in liste_joueurs:
+                    joueur_index = liste_joueurs.index(st.session_state.joueur) + 1
+                    
                 joueur_choisi = st.radio(
-                    "Sélectionnez le joueur (Joueur 1) :",
+                    "👤 Étape 3 : Sélectionner le Joueur (Joueur 1)",
                     options=["Tous les joueurs"] + list(liste_joueurs),
-                    index=0
+                    index=joueur_index
                 )
-        else:
-            st.button("👤 3. Veuillez d'abord choisir un club", disabled=True, use_container_width=True)
-            joueur_choisi = "Tous les joueurs"
+            else:
+                st.info("Sélectionnez un club pour voir apparaître la liste des joueurs.")
+                joueur_choisi = "Tous les joueurs"
+            
+            # Bouton de soumission unique : Ferme virtuellement les choix et applique les données
+            bouton_valider = st.form_submit_button("⚡ Appliquer les filtres et calculer", use_container_width=True)
+            
+            if bouton_valider:
+                st.session_state.club = club_choisi
+                st.session_state.joueur = joueur_choisi
+                st.rerun()
 
+    # --- ASTUCE CSS CONTRE LE CLAVIER IPHONE ---
+    st.markdown("<style>.stSelectbox div[data-baseweb=\"select\"] input {inputmode: none !important; pointer-events: none !important;}</style>", unsafe_allow_html=True)
 
-    # --- ENCLENCHEMENT DE LA REQUÊTE AND GENERATION TCD ---
+    # --- ENCLENCHEMENT DE LA REQUÊTE ET GENERATION TCD ---
+    annee_valide = st.session_state.annee != "--- Choisir une année ---"
+    club_valide = st.session_state.club != "--- Choisir un club ---"
+
     if not annee_valide:
-        st.info("💡 En attente de vos critères : Veuillez ouvrir le menu **Année** pour commencer.")
+        st.info("💡 En attente de vos critères : Veuillez sélectionner une **Année** ci-dessus.")
     elif not club_valide:
-        st.info("💡 Étape suivante : Veuillez ouvrir le menu **Club** pour charger les matchs correspondants.")
+        st.info("💡 Étape suivante : Veuillez valider un **Club** dans le formulaire pour lancer l'analyse.")
     else:
-        requete = conn.table("test").select("*").eq("Annee", annee_choisie).eq("Equipe1", club_choisi)
+        # Affichage du rappel des filtres actifs en haut du tableau
+        st.success(f"🎯 **Filtres actifs** 📅 {st.session_state.annee} 🏢 {st.session_state.club} 👤 {st.session_state.joueur}")
 
-        if joueur_choisi != "Tous les joueurs":
-            requete = requete.eq("Joueur1", joueur_choisi)
+        requete = conn.table("test").select("*").eq("Annee", st.session_state.annee).eq("Equipe1", st.session_state.club)
+
+        if st.session_state.joueur != "Tous les joueurs":
+            requete = requete.eq("Joueur1", st.session_state.joueur)
 
         reponse = requete.limit(5000).execute()
         df_resultat = pd.DataFrame(reponse.data)
@@ -92,7 +114,6 @@ try:
         if df_resultat.empty:
             st.warning("⚠️ Aucun record trouvé pour cette combinaison précise.")
         else:
-            # Validation des colonnes requises pour le calcul
             colonnes_requises = ["MatchNonFF", "Match", "VictoireJ1", "PointsJ1"]
             if all(col in df_resultat.columns for col in colonnes_requises):
                 
@@ -111,8 +132,6 @@ try:
 
                 if not tcd_base.empty:
                     tcd_base = tcd_base[colonnes_requises]
-                    
-                    # Normalisation du niveau "Semaine"
                     tcd_base.index = tcd_base.index.set_levels(tcd_base.index.levels[4].astype(str), level=4)
                     
                     # 2. Calcul des sous-totaux par joueur
@@ -126,13 +145,13 @@ try:
                     # 3. Fusion des données
                     tcd_bilan = pd.concat([tcd_base, totaux_joueurs])
                     
-                    # 4. Tri personnalisé (Total placé au-dessus du détail)
+                    # 4. Tri personnalisé
                     tcd_bilan = tcd_bilan.sort_index(
                         level=["Equipe1", "Joueur1", "Semaine"],
                         key=lambda x: x.map(lambda val: "0" if val == "TOTAL JOUEUR" else str(val)) if x.name == "Semaine" else x
                     )
                     
-                    # 5. Calcul des pourcentages et structuration finale
+                    # 5. Calcul des pourcentages et colonnes
                     tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
                     tcd_bilan = tcd_bilan[["MatchNonFF", "Match", "VictoireJ1", "Taux Victoires", "PointsJ1"]]
                     tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés J1"]
@@ -174,7 +193,7 @@ try:
                 else:
                     st.info("Données insuffisantes pour générer ce tableau croisé.")
             else:
-                st.error("Une ou plusieurs colonnes de calcul ('MatchNonFF', 'Match', 'VictoireJ1', 'PointsJ1') sont introuvables.")
+                st.error("Une ou plusieurs colonnes de calcul sont introuvables dans la base de données.")
                 
 except Exception as e:
     st.error("Une erreur technique est survenue lors de l'exécution de l'application.")
