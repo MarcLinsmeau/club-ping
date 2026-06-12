@@ -1,4 +1,37 @@
-import streamlit as st
+# --- GRAPHQUES CORRIGÉS ---
+                    if len(st.session_state.joueurs_choisis) == 1:
+                        st.subheader(f"📊 Analyse Graphique — {st.session_state.joueurs_choisis[0]}")
+                        
+                        # Préparation des données communes
+                        df_graph = tcd_base.reset_index()
+                        df_graph["semaine_num"] = df_graph["Semaine"].map(parse_semaine)
+                        df_graph = df_graph.sort_values(by="semaine_num")
+                        
+                        # Calcul du cumul
+                        df_graph["Points Cumulés"] = df_graph["PointsJ1"].cumsum()
+                        
+                        # Graphique 1 : Histogramme de la semaine
+                        st.write("**Points gagnés / perdus par semaine**")
+                        st.bar_chart(
+                            data=df_graph,
+                            x="Semaine",
+                            y="PointsJ1",
+                            color="#22c55e", 
+                            use_container_width=True
+                        )
+                        
+                        st.write("") 
+                        
+                        # Graphique 2 : Courbe du cumul (placée en-dessous)
+                        st.write("**Évolution du cumul sur la saison**")
+                        st.line_chart(
+                            data=df_graph,
+                            x="Semaine",
+                            y="Points Cumulés",
+                            color="#3b82f6", 
+                            use_container_width=True
+                        )
+                        st.markdown("---")import streamlit as st
 import pandas as pd
 from st_supabase_connection import SupabaseConnection
 
