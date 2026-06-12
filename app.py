@@ -116,33 +116,35 @@ try:
             st.header("📊 Tableau Croisé Dynamique : Bilan des Joueurs")
             st.write("Ce tableau récapitule les statistiques complètes. Il s'affiche en entier sans barre de défilement.")
 
-            colonnes_requises = ["MatchNonFF", "Match", "VictoireJ1"]
+            # Ajout sécurisé de 'PointsJ1' dans la validation des colonnes de base
+            colonnes_requises = ["MatchNonFF", "Match", "VictoireJ1", "PointsJ1"]
             if all(col in df_resultat.columns for col in colonnes_requises):
                 
-                # 1. Pivot de table initial (Données de base par Semaine)
+                # 1. Pivot de table initial (Inclusion de PointsJ1)
                 tcd_base = df_resultat.pivot_table(
                     index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
-                    values=["MatchNonFF", "Match", "VictoireJ1"],
+                    values=["MatchNonFF", "Match", "VictoireJ1", "PointsJ1"],
                     aggfunc={
                         "MatchNonFF": "size",   
                         "Match": "size",    
-                        "VictoireJ1": "sum"     
+                        "VictoireJ1": "sum",
+                        "PointsJ1": "sum" # Ajout du calcul de la somme des points de classement gagnés/perdus
                     },
                     fill_value=0
                 )
 
                 if not tcd_base.empty:
-                    # Reconstruction sécurisée pour l'ordre initial des colonnes
-                    colonnes_existantes = [c for c in ["MatchNonFF", "Match", "VictoireJ1"] if c in tcd_base.columns]
+                    # Reconstruction ordonnée et explicite de nos colonnes de travail
+                    colonnes_existantes = ["MatchNonFF", "Match", "VictoireJ1", "PointsJ1"]
                     tcd_base = tcd_base[colonnes_existantes]
                     
                     # Normalisation propre du niveau "Semaine" en chaînes de caractères
                     tcd_base.index = tcd_base.index.set_levels(tcd_base.index.levels[4].astype(str), level=4)
                     
-                    # 2. CALCUL DES SOUS-TOTAUX PAR JOUEUR SEULEMENT
+                    # 2. CALCUL DES SOUS-TOTAUX PAR JOUEUR (La somme s'applique automatiquement sur PointsJ1)
                     totaux_joueurs = tcd_base.groupby(level=["Equipe1", "Joueur1"]).sum()
                     
-                    # Remplissage des dimensions d'index pour insérer proprement la ligne
+                    # Remplissage des dimensions d'index pour insérer proprement la ligne de totalisation
                     totaux_joueurs["ClassementJ1"] = "TOTAL JOUEUR"
                     totaux_joueurs["Division"] = "TOTAL JOUEUR"
                     totaux_joueurs["Semaine"] = "TOTAL JOUEUR"
@@ -153,16 +155,17 @@ try:
                     tcd_bilan = pd.concat([tcd_base, totaux_joueurs])
                     
                     # 4. TRI PERSONNALISÉ POUR PROPULSER LE TOTAL AU-DESSUS DU DÉTAIL
-                    # On trie sur l'index 'Semaine' en appliquant une fonction lambda. 
-                    # Si la valeur est 'TOTAL JOUEUR', on renvoie une chaîne prioritaire ('0'), sinon on garde la semaine.
                     tcd_bilan = tcd_bilan.sort_index(
                         level=["Equipe1", "Joueur1", "Semaine"],
                         key=lambda x: x.map(lambda val: "0" if val == "TOTAL JOUEUR" else str(val)) if x.name == "Semaine" else x
                     )
                     
-                    # 5. CALCULS DES POURCENTAGES & RENOMMAGE DES COLONNES
+                    # 5. CALCULS DES POURCENTAGES & RENOMMAGE DES COLONNES DES 4 METRICS
                     tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
-                    tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires"]
+                    
+                    # Réorganisation finale des colonnes pour l'affichage visuel
+                    tcd_bilan = tcd_bilan[["MatchNonFF", "Match", "VictoireJ1", "Taux Victoires", "PointsJ1"]]
+                    tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés J1"]
 
                     # Affichage final de la performance
                     st.subheader("📋 Tableau de synthèse des performances")
@@ -172,7 +175,8 @@ try:
                         "Sélections": "{:,.0f}",
                         "Matchs Joués": "{:,.0f}",
                         "Matchs Gagnés": "{:,.0f}",
-                        "% Victoires": "{:.1f}%"
+                        "% Victoires": "{:.1f}%",
+                        "Points Gagnés J1": "{:+.0f}" # Formatage signé (+12 ou -7) pour l'évolution des points tennis de table
                     }).background_gradient(
                         cmap="RdYlGn", 
                         subset=["% Victoires"],
@@ -206,7 +210,7 @@ try:
                 else:
                     st.info("Données insuffisantes pour générer ce tableau croisé.")
             else:
-                st.error("Une ou plusieurs colonnes de calcul ('MatchNonFF', 'Match', 'VictoireJ1') sont introuvables.")
+                st.error("Une ou plusieurs colonnes de calcul ('MatchNonFF', 'Match', 'VictoireJ1', 'PointsJ1') sont introuvables.")
                 
 except Exception as e:
     st.error("Une erreur technique est survenue lors de l'exécution de l'application.")
