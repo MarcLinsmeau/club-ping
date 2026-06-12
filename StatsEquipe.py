@@ -4,9 +4,9 @@ import pandas as pd
 import utils
 
 def execution_app(conn):
-    """Conteneur : Semaine, Equipe1, Equipe2 en index, Joueurs en colonnes (Entiers)."""
+    """Conteneur : Semaine, Equipe2 en index, Joueurs en colonnes."""
     
-    # --- ÉTAT DES SESSIONS & INTERFACE (identique) ---
+    # --- ÉTAT DES SESSIONS ---
     for key, val in [("annee_choisie", None), ("club_choisi", None), ("division_choisie", None)]:
         if key not in st.session_state: st.session_state[key] = val
 
@@ -14,6 +14,7 @@ def execution_app(conn):
         if niveau <= 1: st.session_state.club_choisi = None
         if niveau <= 2: st.session_state.division_choisie = None
 
+    # --- INTERFACE ---
     st.subheader("🔍 Filtres de sélection")
     st.segmented_control("Année", options=utils.charger_annees(conn), key="annee_choisie", selection_mode="single", on_change=reset_suivant, args=(1,), label_visibility="collapsed")
     if st.session_state.annee_choisie:
@@ -31,35 +32,4 @@ def execution_app(conn):
         if df_res.empty:
             st.warning("⚠️ Aucun record trouvé.")
         else:
-            # 1. Calcul agrégé
-            df_g = df_res.groupby(["Semaine", "Equipe1", "Equipe2", "Joueur1"]).agg(
-                Sélect=("MatchNonFF", "size"),
-                Joués=("Match", "size"),
-                Vict=("VictoireJ1", "sum"),
-                Points=("PointsJ1", "sum")
-            ).fillna(0)
-            
-            # 2. Tri joueurs
-            joueurs = sorted(df_g.index.get_level_values("Joueur1").unique())
-            
-            # 3. Construction + conversion en Int64
-            df_list = []
-            for joueur in joueurs:
-                df_j = df_g.xs(joueur, level="Joueur1")[["Sélect", "Joués", "Vict", "Points"]].astype('Int64')
-                df_j.columns = pd.MultiIndex.from_product([[joueur], df_j.columns])
-                df_list.append(df_j)
-            
-            df_pivot = pd.concat(df_list, axis=1).fillna(0).astype('Int64')
-            df_pivot = df_pivot.sort_index(level="Semaine", key=lambda x: x.map(utils.parse_semaine))
-
-            # 4. Total
-            total_row = pd.DataFrame(df_pivot.sum()).T.astype('Int64')
-            total_row.index = pd.MultiIndex.from_tuples([("Total", "", "")], names=["Semaine", "Equipe1", "Equipe2"])
-            df_pivot = pd.concat([df_pivot, total_row])
-
-            # 5. Affichage avec style
-            st.subheader(f"📋 Synthèse hebdomadaire ({len(df_res)} match(s))")
-            st_style = df_pivot.style.set_properties(**{'border': '1px solid #d3d3d3'}) \
-                                     .set_table_styles([{'selector': 'th', 'props': [('border', '1px solid #d3d3d3')]}])
-            
-            st.dataframe(st_style, use_container_width=True, height=(len(df_pivot) + 1) * 35)
+            # 1. Calcul agrégé (Equipe1 retiré de l'index)
