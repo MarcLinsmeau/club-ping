@@ -102,7 +102,7 @@ try:
                         digits = "".join([c for c in str(val) if c.isdigit()])
                         return int(digits) if digits else 0
 
-                    # --- GRAPHQUES COMPLETS AVEC VALEURS PERMANENTES (ALTAIR) ---
+                    # --- GRAPHQUES COMPLETS AVEC VALEURS PERMANENTES (ALTAIR V5 COMPATIBLE) ---
                     if len(st.session_state.joueurs_choisis) == 1:
                         st.subheader(f"📊 Analyse Graphique — {st.session_state.joueurs_choisis[0]}")
                         
@@ -121,20 +121,20 @@ try:
                         )
                         
                         labels_barres = alt.Chart(df_graph).mark_text(
-                            dy=alt.expr(alt.datum.PointsJ1 >= 0, -10, 10), # Décale le texte au-dessus si positif, en-dessous si négatif
+                            dy="datum.PointsJ1 >= 0 ? -10 : 10", # Correction de la syntaxe de décalage pour Altair 5+
                             align="center",
                             fontWeight="bold"
                         ).encode(
                             x=alt.X("Semaine:N", sort=alt.SortField(field="semaine_num", order="ascending")),
                             y=alt.Y("PointsJ1:Q"),
-                            text=alt.Text("PointsJ1:Q", format="+d") # Format + ou - devant le chiffre
+                            text=alt.Text("PointsJ1:Q", format="+d")
                         )
                         
                         st.altair_chart(barres + labels_barres, use_container_width=True)
                         
                         st.write("") 
                         
-                        # --- GRAPHE 2 : Courbe du cumul ---
+                        # --- GRAPHE 2 : Courbe du cumul (placée en-dessous) ---
                         st.write("**Évolution du cumul sur la saison**")
                         
                         courbe = alt.Chart(df_graph).mark_line(color="#3b82f6", strokeWidth=3).encode(
@@ -148,7 +148,7 @@ try:
                         )
                         
                         labels_courbe = alt.Chart(df_graph).mark_text(
-                            dy=-12, # Décale le texte un peu au-dessus du point
+                            dy=-12, 
                             align="center",
                             fontWeight="bold"
                         ).encode(
