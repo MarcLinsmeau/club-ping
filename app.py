@@ -88,7 +88,7 @@ try:
                 tcd_base = df_res.pivot_table(
                     index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
                     values=colonnes_requises, 
-                    aggfunc={"MatchNonFF": "size", "Match": "size", "VictoireJ1": "sum", "PointsJ1": "sum"}, 
+                    aggfunc={"MatchNonFF": "size", "Match", "size", "VictoireJ1": "sum", "PointsJ1": "sum"}, 
                     fill_value=0
                 ).reindex(columns=colonnes_requises)
 
@@ -101,7 +101,7 @@ try:
                         digits = "".join([c for c in str(val) if c.isdigit()])
                         return int(digits) if digits else 0
 
-                    # --- AJOUT DES GRAPHQUES EMPILÉS (UN EN-DESSOUS DE L'AUTRE) ---
+                    # --- AJOUT DES VALEURS SUR LES GRAPHQUES ---
                     if len(st.session_state.joueurs_choisis) == 1:
                         st.subheader(f"📊 Analyse Graphique — {st.session_state.joueurs_choisis[0]}")
                         
@@ -113,26 +113,28 @@ try:
                         # Calcul du cumul
                         df_graph["Points Cumulés"] = df_graph["PointsJ1"].cumsum()
                         
-                        # Graphique 1 : Histogramme de la semaine
+                        # Graphique 1 : Histogramme de la semaine avec valeurs
                         st.write("**Points gagnés / perdus par semaine**")
                         st.bar_chart(
                             data=df_graph,
                             x="Semaine",
                             y="PointsJ1",
-                            color="#22c55e", # Vert pour les barres
-                            use_container_width=True
+                            color="#22c55e", 
+                            use_container_width=True,
+                            show_label=True # OPTIMISATION : Affiche la valeur sur/au-dessus de chaque barre
                         )
                         
-                        st.write("") # Petit espace vertical de respiration
+                        st.write("") 
                         
-                        # Graphique 2 : Courbe du cumul (placée en-dessous)
+                        # Graphique 2 : Courbe du cumul avec valeurs
                         st.write("**Évolution du cumul sur la saison**")
                         st.line_chart(
                             data=df_graph,
                             x="Semaine",
                             y="Points Cumulés",
-                            color="#3b82f6", # Bleu pour la courbe
-                            use_container_width=True
+                            color="#3b82f6", 
+                            use_container_width=True,
+                            show_label=True # OPTIMISATION : Affiche la valeur au niveau de chaque nœud de la courbe
                         )
                         st.markdown("---")
 
