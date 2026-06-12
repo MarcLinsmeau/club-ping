@@ -15,6 +15,7 @@ from st_supabase_connection import SupabaseConnection
 
 # Importation de votre module de fonctions partagées
 import utils 
+import StatsJoueursSemaine
 
 # --- CONFIGURATION DE L'APPLICATION ---
 mode = st.query_params.get("mode", "StatsJoueursSemaine")
