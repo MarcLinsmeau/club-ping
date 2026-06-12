@@ -30,17 +30,22 @@ try:
     st.subheader("🔍 Filtres de sélection")
     col1, col2, col3 = st.columns(3)
 
-    # 1. FILTRE ANNÉE (Toujours actif au démarrage)
+    # 1. FILTRE ANNÉE
     liste_annees = charger_annees()
     options_annees = ["--- Choisir une année ---"] + liste_annees
 
     with col1:
-        annee_choisie = st.selectbox("1. Année :", options_annees, index=0)
+        # L'injection d'un faux placeholder ou l'astuce CSS Streamlit permet de bloquer l'input.
+        # Pour une compatibilité mobile parfaite sans clavier qui s'ouvre, on utilise les paramètres natifs.
+        annee_choisie = st.selectbox(
+            "1. Année :", 
+            options_annees, 
+            index=0
+        )
 
-    # Détermination du statut du filtre Club
     annee_valide = annee_choisie != "--- Choisir une année ---"
 
-    # 2. FILTRE CLUB (Verrouillé tant qu'une année n'est pas choisie)
+    # 2. FILTRE CLUB
     if annee_valide:
         liste_clubs = charger_clubs(annee_choisie)
         options_clubs = ["--- Choisir un club ---"] + liste_clubs
@@ -57,10 +62,9 @@ try:
             disabled=desactiver_club
         )
 
-    # Détermination du statut du filtre Joueur
     club_valide = annee_valide and club_choisi != "--- Choisir un club ---" and club_choisi != "Veuillez d'abord choisir une année"
 
-    # 3. FILTRE JOUEUR (Verrouillé tant qu'un club n'est pas choisi)
+    # 3. FILTRE JOUEUR
     if club_valide:
         liste_joueurs = charger_joueurs(annee_choisie, club_choisi)
         options_joueurs = ["Tous les joueurs"] + liste_joueurs
@@ -77,8 +81,22 @@ try:
             disabled=desactiver_joueur
         )
 
+    # --- ASTUCE CSS POUR IPHONE : Désactive la saisie au clavier dans les selectbox ---
+    # Cette brique de code empêche le clavier virtuel de l'iPhone de s'ouvrir de force 
+    # et transforme le clic en une simple ouverture de menu déroulant natif.
+    st.markdown(
+        """
+        <style>
+            .stSelectbox div[data-baseweb="select"] input {
+                inputmode: none !important;
+                pointer-events: none !important;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-    # --- ENCLENCHEMENT DE LA REQUÊTE ET AFFICHAGE ---
+    # --- ENCLENCHEMENT DE LA REQUÊTE AND GENERATION TCD ---
     if not annee_valide:
         st.info("💡 En attente de vos critères : Veuillez sélectionner une **Année** pour commencer.")
     elif not club_valide:
@@ -95,88 +113,60 @@ try:
         if df_resultat.empty:
             st.warning("⚠️ Aucun record trouvé pour cette combinaison précise.")
         else:
-            st.subheader(f"📋 Records trouvés ({len(df_resultat)} match(s))")
-            
-            # Réorganisation des colonnes d'affichage selon ton schéma SQL
-            colonnes_ordonnees = [
-                "id", "Annee", "Division", "Semaine", "Match", 
-                "Equipe1", "Joueur1", "ClassementJ1", "ClassJ1New", "PointsJ1",
-                "Resultat1.1", "Resultat1.2", "Resultat2.1", "Resultat2.2", 
-                "ClassementJ2", "ClassJ2New", "Joueur2", "Equipe2", 
-                "VictoireJ1", "VictoireJ2", "Match Joué", "MatchNonFF"
-            ]
-            colonnes_visibles = [col for col in colonnes_ordonnees if col in df_resultat.columns]
-            
-            # Affichage du tableau de données brutes
-            # st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
-
-
-            # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) SANS AUCUN DEFILEMENT ---
-            # st.markdown("---")
-            # st.header("📊 Tableau Croisé Dynamique : Bilan des Joueurs")
-            # st.write("Ce tableau récapitule les statistiques complètes. Il s'affiche en entier sans barre de défilement.")
-
-            # Ajout sécurisé de 'PointsJ1' dans la validation des colonnes de base
+            # Validation des colonnes requises pour le calcul
             colonnes_requises = ["MatchNonFF", "Match", "VictoireJ1", "PointsJ1"]
             if all(col in df_resultat.columns for col in colonnes_requises):
                 
-                # 1. Pivot de table initial (Inclusion de PointsJ1)
+                # 1. Pivot de table initial
                 tcd_base = df_resultat.pivot_table(
                     index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
-                    values=["MatchNonFF", "Match", "VictoireJ1", "PointsJ1"],
+                    values=colonnes_requises,
                     aggfunc={
                         "MatchNonFF": "size",   
                         "Match": "size",    
                         "VictoireJ1": "sum",
-                        "PointsJ1": "sum" # Ajout du calcul de la somme des points de classement gagnés/perdus
+                        "PointsJ1": "sum"
                     },
                     fill_value=0
                 )
 
                 if not tcd_base.empty:
-                    # Reconstruction ordonnée et explicite de nos colonnes de travail
-                    colonnes_existantes = ["MatchNonFF", "Match", "VictoireJ1", "PointsJ1"]
-                    tcd_base = tcd_base[colonnes_existantes]
+                    tcd_base = tcd_base[colonnes_requises]
                     
-                    # Normalisation propre du niveau "Semaine" en chaînes de caractères
+                    # Normalisation du niveau "Semaine"
                     tcd_base.index = tcd_base.index.set_levels(tcd_base.index.levels[4].astype(str), level=4)
                     
-                    # 2. CALCUL DES SOUS-TOTAUX PAR JOUEUR (La somme s'applique automatiquement sur PointsJ1)
+                    # 2. Calcul des sous-totaux par joueur
                     totaux_joueurs = tcd_base.groupby(level=["Equipe1", "Joueur1"]).sum()
                     
-                    # Remplissage des dimensions d'index pour insérer proprement la ligne de totalisation
                     totaux_joueurs["ClassementJ1"] = "TOTAL JOUEUR"
                     totaux_joueurs["Division"] = "TOTAL JOUEUR"
                     totaux_joueurs["Semaine"] = "TOTAL JOUEUR"
-                    
                     totaux_joueurs = totaux_joueurs.set_index(["ClassementJ1", "Division", "Semaine"], append=True)
                     
-                    # 3. FUSION DE LA BASE ET DES TOTAUX JOUEURS
+                    # 3. Fusion des données
                     tcd_bilan = pd.concat([tcd_base, totaux_joueurs])
                     
-                    # 4. TRI PERSONNALISÉ POUR PROPULSER LE TOTAL AU-DESSUS DU DÉTAIL
+                    # 4. Tri personnalisé (Total placé au-dessus du détail)
                     tcd_bilan = tcd_bilan.sort_index(
                         level=["Equipe1", "Joueur1", "Semaine"],
                         key=lambda x: x.map(lambda val: "0" if val == "TOTAL JOUEUR" else str(val)) if x.name == "Semaine" else x
                     )
                     
-                    # 5. CALCULS DES POURCENTAGES & RENOMMAGE DES COLONNES DES 4 METRICS
+                    # 5. Calcul des pourcentages et structuration finale
                     tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
-                    
-                    # Réorganisation finale des colonnes pour l'affichage visuel
                     tcd_bilan = tcd_bilan[["MatchNonFF", "Match", "VictoireJ1", "Taux Victoires", "PointsJ1"]]
                     tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés J1"]
 
-                    # Affichage final de la performance
-                    st.subheader("📋 Tableau de synthèse des performances")
+                    # Affichage final stylisé
+                    st.subheader(f"📋 Tableau de synthèse des performances ({len(df_resultat)} match(s) analysé(s))")
                     
-                    # Application des styles CSS (Alignements haut/gauche, bordures serrées, surbrillance du gras)
                     tcd_style = tcd_bilan.style.format({
                         "Sélections": "{:,.0f}",
                         "Matchs Joués": "{:,.0f}",
                         "Matchs Gagnés": "{:,.0f}",
                         "% Victoires": "{:.1f}%",
-                        "Points Gagnés J1": "{:+.0f}" # Formatage signé (+12 ou -7) pour l'évolution des points tennis de table
+                        "Points Gagnés J1": "{:+.0f}"
                     }).background_gradient(
                         cmap="RdYlGn", 
                         subset=["% Victoires"],
@@ -184,27 +174,22 @@ try:
                         vmax=100,
                         axis=0
                     ).set_table_styles([
-                        # Alignement parfait sur l'intégralité des cellules générées
                         {"selector": "th, td, th.row_heading, th.col_heading, td.data, .blank", "props": [
                             ("vertical-align", "top !important"),
                             ("text-align", "left !important")
                         ]},
-                        # Forçage global du quadrillage sombre
                         {"selector": "th, td, th.row_heading, th.col_heading, td.data", "props": [
                             ("border", "1px solid #555555 !important")
                         ]},
-                        # Marges intérieures
                         {"selector": "th, td", "props": [
                             ("padding", "8px !important")
                         ]},
-                        # Style en gras appliqué aux lignes de totaux par joueur
                         {"selector": "tr:has(th:contains('TOTAL')), tr:has(td:contains('TOTAL'))", "props": [
                             ("font-weight", "bold !important"),
                             ("background-color", "#edf2f7 !important")
                         ]}
                     ], overwrite=False)
                     
-                    # Rendu final HTML propre sans défilement
                     st.write(tcd_style.to_html(escape=False), unsafe_allow_html=True)
                     
                 else:
