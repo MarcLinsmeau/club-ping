@@ -33,9 +33,9 @@ def execution_app(conn):
         else:
             # 1. Calcul agrégé
             df_g = df_res.groupby(["Semaine", "Equipe1", "Equipe2", "Joueur1"]).agg(
-                Sélections=("MatchNonFF", "size"),
-                Matchs_Joués=("Match", "size"),
-                Victoires=("VictoireJ1", "sum"),
+                Sélect=("MatchNonFF", "size"),
+                Joués=("Match", "size"),
+                Vict=("VictoireJ1", "sum"),
                 Points=("PointsJ1", "sum")
             ).fillna(0)
             
@@ -45,7 +45,7 @@ def execution_app(conn):
             # 3. Construction + conversion en Int64
             df_list = []
             for joueur in joueurs:
-                df_j = df_g.xs(joueur, level="Joueur1")[["Sélections", "Matchs_Joués", "Victoires", "Points"]].astype('Int64')
+                df_j = df_g.xs(joueur, level="Joueur1")[["Sélect", "Joués", "Vict", "Points"]].astype('Int64')
                 df_j.columns = pd.MultiIndex.from_product([[joueur], df_j.columns])
                 df_list.append(df_j)
             
