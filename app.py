@@ -22,13 +22,17 @@ try:
     # Initialisation unique de la connexion pour tout l'écosystème d'applications
     conn = st.connection("supabase", type=SupabaseConnection)
 
-    # --- ROUTAGE ET AIGUILLAGE DES SOU-APPS ---
+   # --- ROUTAGE ET AIGUILLAGE DES SOUS-APPS ---
     if mode == "StatsJoueursSemaine":
         from StatsJoueursSemaine import execution_app
         execution_app(conn)
         
     elif mode == "StatsJoueursAnnee":
         from StatsJoueursAnnee import execution_app
+        execution_app(conn)
+        
+    elif mode == "NomDeVotreNouvelleSousApp":  # ← Ajoutez votre nouveau mode ici
+        from NomDeVotreNouvelleSousApp import execution_app
         execution_app(conn)
         
     else:
