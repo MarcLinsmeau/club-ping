@@ -1,10 +1,10 @@
-# StatsJoueursAdversaire.py
+# NomDeVotreNouvelleSousApp.py
 import streamlit as st
 import pandas as pd
 import utils
 
 def execution_app(conn):
-    """Conteneur principal de l'application de statistiques annuelles (Trié par Joueur puis par Année)."""
+    """Conteneur principal de la nouvelle sous-app : Analyse par Équipe, Joueurs et Classements."""
     
     # --- ÉTAT DES SESSIONS & CALLBACKS DE FILTRES ---
     def reset_filtres():
@@ -50,42 +50,44 @@ def execution_app(conn):
         if df_res.empty:
             st.warning("⚠️ Aucun record trouvé pour cette combinaison précise.")
         else:
-            colonnes_requises = ["MatchNonFF", "Match", "VictoireJ1", "PointsJ1"]
+            # Adaptation des colonnes requises à votre demande (Pas besoin de PointsJ1 ni MatchNonFF ici)
+            colonnes_requises = ["Match", "VictoireJ1", "ClassementJ2"]
             if not all(c in df_res.columns for c in colonnes_requises):
-                st.error("Une ou plusieurs colonnes de calcul indispensables sont introuvables en base de données.")
+                st.error("Une ou plusieurs colonnes de calcul indispensables (Match, VictoireJ1, ClassementJ2) sont introuvables.")
                 st.stop()
                 
-            # --- CONFIGURATION DU TCD : NOUVEL ORDRE DES INDEX ---
-            # On place 'Joueur1' puis 'Annee' en tête pour l'affichage et le regroupement visuel
+            # --- CONFIGURATION DU TCD DEMANDÉ ---
+            # Index : Equipe1, Joueur1, Annee, ClassementJ1, ClassementJ2
+            # Valeurs initiales : Match (pour la taille/somme), VictoireJ1
             tcd_bilan = df_res.pivot_table(
-                index=["Joueur1", "Annee", "Equipe1", "ClassementJ1"], 
-                values=colonnes_requises, 
-                aggfunc={"MatchNonFF": "size", "Match": "size", "VictoireJ1": "sum", "PointsJ1": "sum"}, 
+                index=["Equipe1", "Joueur1", "Annee", "ClassementJ1", "ClassementJ2"], 
+                values=["Match", "VictoireJ1"], 
+                aggfunc={"Match": "size", "VictoireJ1": "sum"}, 
                 fill_value=0
-            ).reindex(columns=colonnes_requises)
+            )
 
             if tcd_bilan.empty:
                 st.info("Données insuffisantes pour générer ce tableau croisé.")
             else:
-                # Forçage du format String sur le niveau de l'index 'Annee' (situé désormais à l'index 1)
-                tcd_bilan.index = tcd_bilan.index.set_levels(tcd_bilan.index.levels[1].astype(str), level=1)
+                # Forçage du format String sur le niveau de l'index 'Annee' (situé à la position 2 désormais)
+                tcd_bilan.index = tcd_bilan.index.set_levels(tcd_bilan.index.levels[2].astype(str), level=2)
                 
-                # --- MODIFICATION DU TRI : Priorité Joueur puis Année ---
+                # Tri par Joueur puis par Année comme précédemment mis en place
                 tcd_bilan = tcd_bilan.sort_index(level=["Joueur1", "Annee"])
                 
-                # Calcul des performances
+                # Calcul de la colonne réclamée : % Victoires
                 tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
-                tcd_bilan = tcd_bilan[["MatchNonFF", "Match", "VictoireJ1", "Taux Victoires", "PointsJ1"]]
                 
-                # Renommage des colonnes
-                tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés J1"]
+                # Réorganisation et renommage des colonnes selon vos exigences précises
+                tcd_bilan = tcd_bilan[["Match", "VictoireJ1", "Taux Victoires"]]
+                tcd_bilan.columns = ["Matchs Joués", "Victoires", "% Victoire"]
 
-                st.subheader(f"📋 Tableau de synthèse multi-saisons ({len(df_res)} match(s) analysé(s))")
+                st.subheader(f"📋 Tableau de synthèse analytique ({len(df_res)} match(s) analysé(s))")
                 
-                # Génération HTML propre
+                # Génération HTML de la table avec application du dégradé sur la performance
                 html_table = (
-                    tcd_bilan.style.format({"Sélections": "{:,.0f}", "Matchs Joués": "{:,.0f}", "Matchs Gagnés": "{:,.0f}", "% Victoires": "{:.1f}%", "Points Gagnés J1": "{:+.0f}"})
-                    .background_gradient(cmap="RdYlGn", subset=["% Victoires"], vmin=0, vmax=100, axis=0)
+                    tcd_bilan.style.format({"Matchs Joués": "{:,.0f}", "Victoires": "{:,.0f}", "% Victoire": "{:.1f}%"})
+                    .background_gradient(cmap="RdYlGn", subset=["% Victoire"], vmin=0, vmax=100, axis=0)
                     .set_table_styles([
                         {"selector": "th, td, th.row_heading, th.col_heading, td.data, .blank", "props": [("vertical-align", "top !important"), ("text-align", "left !important"), ("border", "1px solid #555555 !important"), ("padding", "8px !important")]}
                     ], overwrite=False)
