@@ -25,7 +25,7 @@ try:
     # Connexion à l'instance Supabase via le gestionnaire natif
     conn = st.connection("supabase", type=SupabaseConnection)
 
-   StatsJoueursSemaine.StatsJoueursSemaine(conn)
+    StatsJoueursSemaine.StatsJoueursSemaine(conn)
                 
 except Exception as e:
     st.error("Une erreur technique globale est survenue lors du chargement de la page.")
