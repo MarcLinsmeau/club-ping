@@ -137,7 +137,7 @@ try:
                 if not tcd_base.empty:
                     tcd_base = tcd_base[colonnes_requises]
                     
-                    # Normalisation du niveau "Semaine"
+                    # Normalisation du niveau "Semaine" (on s'assure que c'est du texte brut pour éviter les bugs)
                     tcd_base.index = tcd_base.index.set_levels(tcd_base.index.levels[4].astype(str), level=4)
                     
                     # 2. Calcul des sous-totaux par joueur
@@ -151,10 +151,19 @@ try:
                     # 3. Fusion des données
                     tcd_bilan = pd.concat([tcd_base, totaux_joueurs])
                     
-                    # 4. Tri personnalisé (Total placé au-dessus du détail en triant sur la colonne virtuelle / index)
+                    # --- MODIFICATION ICI : TRI CHRONOLOGIQUE DES SEMAINES PAR JOUEUR ---
+                    # Fonction pour convertir la semaine en valeur numérique lors du tri (ex: "Semaine 5" ou "5" -> 5)
+                    def cle_tri_semaine(valeur):
+                        if valeur == "":  # C'est la ligne "Total Saison"
+                            return -1     # -1 permet de la placer tout en haut du joueur (remplacer par 999 pour la mettre tout en bas)
+                        
+                        # Extraction des chiffres si la colonne contient du texte comme "Semaine 12" ou "S12"
+                        chiffres = "".join([c for c in str(valeur) if c.isdigit()])
+                        return int(chiffres) if chiffres else 0
+
                     tcd_bilan = tcd_bilan.sort_index(
-                        level=["Equipe1", "Joueur1", "ClassementJ1"],
-                        key=lambda x: x.map(lambda val: "0" if val == "Total Saison" else str(val)) if x.name == "ClassementJ1" else x
+                        level=["Equipe1", "Joueur1", "Semaine"],
+                        key=lambda x: x.map(cle_tri_semaine) if x.name == "Semaine" else x
                     )
                     
                     # 5. Calcul des pourcentages et structuration finale
@@ -162,15 +171,13 @@ try:
                     tcd_bilan = tcd_bilan[["MatchNonFF", "Match", "VictoireJ1", "Taux Victoires", "PointsJ1"]]
                     tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés J1"]
 
-                    # --- MODIFICATION ICI : GESTION DES PRIORITÉS DE STYLE ---
+                    # Définition des priorités de style (Gras partout, fond gris sauf sur le % colorié)
                     def styliser_ligne_total(row):
                         if "Total Saison" in row.name:
                             styles = []
                             for col in row.index:
-                                # Si c'est la colonne des pourcentages, on met en gras MAIS on ne force pas de couleur de fond (background)
                                 if col == "% Victoires":
                                     styles.append("font-weight: bold !important;")
-                                # Pour les autres colonnes de données, on met en gras ET fond gris
                                 else:
                                     styles.append("font-weight: bold !important; background-color: #edf2f7 !important;")
                             return styles
@@ -205,7 +212,6 @@ try:
                         {"selector": "th, td", "props": [
                             ("padding", "8px !important")
                         ]},
-                        # On applique le gras et le gris uniquement sur les cellules d'entête textuelles à gauche
                         {"selector": "tr:has(th:contains('Total Saison')) th", "props": [
                             ("font-weight", "bold !important"),
                             ("background-color", "#edf2f7 !important")
