@@ -101,28 +101,40 @@ try:
                         digits = "".join([c for c in str(val) if c.isdigit()])
                         return int(digits) if digits else 0
 
-                    # --- MODIFICATION ICI : HISTOGRAMME DOUBLE (POINTS & CUMUL) ---
+                    # --- MODIFICATION ICI : DEUX GRAPHQUES CÔTE À CÔTE ---
                     if len(st.session_state.joueurs_choisis) == 1:
-                        st.subheader(f"📊 Performances et Cumul de points par semaine — {st.session_state.joueurs_choisis[0]}")
+                        st.subheader(f"📊 Analyse Graphique — {st.session_state.joueurs_choisis[0]}")
                         
+                        # Préparation des données communes
                         df_graph = tcd_base.reset_index()
                         df_graph["semaine_num"] = df_graph["Semaine"].map(parse_semaine)
                         df_graph = df_graph.sort_values(by="semaine_num")
                         
-                        # Calcul de la somme cumulée sur la colonne ordonnée chronologiquement
+                        # Calcul du cumul
                         df_graph["Points Cumulés"] = df_graph["PointsJ1"].cumsum()
                         
-                        # Renommage des colonnes pour avoir une légende explicite sur le graphique
-                        df_graph = df_graph.rename(columns={"PointsJ1": "Points de la semaine"})
+                        # Création de deux colonnes Streamlit (50% / 50%)
+                        col1, col2 = st.columns(2)
                         
-                        # Affichage de l'histogramme avec les deux variables
-                        st.bar_chart(
-                            data=df_graph,
-                            x="Semaine",
-                            y=["Points de la semaine", "Points Cumulés"],
-                            color=["#22c55e", "#3b82f6"], # Vert pour la semaine, Bleu pour le cumul
-                            use_container_width=True
-                        )
+                        with col1:
+                            st.write("**Points gagnés / perdus par semaine**")
+                            st.bar_chart(
+                                data=df_graph,
+                                x="Semaine",
+                                y="PointsJ1",
+                                color="#22c55e", # Vert pour les barres de la semaine
+                                use_container_width=True
+                            )
+                            
+                        with col2:
+                            st.write("**Évolution du cumul sur la saison**")
+                            st.line_chart(
+                                data=df_graph,
+                                x="Semaine",
+                                y="Points Cumulés",
+                                color="#3b82f6", # Bleu pour la courbe cumulative
+                                use_container_width=True
+                            )
                         st.markdown("---")
 
                     # 2. Sous-totaux par joueur
