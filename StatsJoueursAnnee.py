@@ -1,10 +1,10 @@
 # StatsJoueursAnnee.py
 import streamlit as st
 import pandas as pd
-import utils  # Importation essentielle pour la gestion des filtres
+import utils  # Conservé au cas où d'autres fonctions du module resteraient requises
 
 def execution_app(conn):
-    """Conteneur principal de l'application de statistiques annuelles des joueurs (TCD uniquement)."""
+    """Conteneur principal de l'application de statistiques annuelles des joueurs (TCD par Année)."""
     
     # --- ÉTAT DES SESSIONS & CALLBACKS DE FILTRES ---
     def reset_filtres(niveau):
@@ -68,9 +68,10 @@ def execution_app(conn):
                 st.error("Une ou plusieurs colonnes de calcul indispensables sont introuvables en base de données.")
                 st.stop()
                 
-            # --- 1. SÉCURISATION ET CRÉATION DU TCD ---
+            # --- 1. CONFIGURATION DU NOUVEL INDEX SUR LE TCD ---
+            # Index demandé : Equipe1, Joueur1, Annee, ClassementJ1
             tcd_base = df_res.pivot_table(
-                index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
+                index=["Equipe1", "Joueur1", "Annee", "ClassementJ1"], 
                 values=colonnes_requises, 
                 aggfunc={"MatchNonFF": "size", "Match": "size", "VictoireJ1": "sum", "PointsJ1": "sum"}, 
                 fill_value=0
@@ -79,19 +80,25 @@ def execution_app(conn):
             if tcd_base.empty:
                 st.info("Données insuffisantes pour générer ce tableau croisé.")
             else:
-                # Passage de l'index de la semaine en format texte
-                tcd_base.index = tcd_base.index.set_levels(tcd_base.index.levels[4].astype(str), level=4)
+                # Forçage du format String sur le niveau de l'index 'Annee' pour éviter les formats numériques
+                tcd_base.index = tcd_base.index.set_levels(tcd_base.index.levels[2].astype(str), level=2)
 
-                # --- 2. CALCUL DU RESUMÉ & INJECTION DU TABLEAU HTML/CSS ---
+                # --- 2. CALCUL DU RESUMÉ & CALCULS DES LIGNES TOTAL ---
                 # Génération des sous-totaux par bloc de joueurs
                 totaux = tcd_base.groupby(level=["Equipe1", "Joueur1"]).sum()
-                totaux["ClassementJ1"], totaux["Division"], totaux["Semaine"] = "Total Saison", "", ""
-                totaux = totaux.set_index(["ClassementJ1", "Division", "Semaine"], append=True)
                 
-                # Fusion finale et tri chronologique basé sur utils.parse_semaine
-                tcd_bilan = pd.concat([tcd_base, totaux]).sort_index(level=["Equipe1", "Joueur1", "Semaine"], key=lambda x: x.map(utils.parse_semaine) if x.name == "Semaine" else x)
+                # Alignement de l'index des totaux sur la nouvelle structure (4 niveaux)
+                totaux["Annee"], totaux["ClassementJ1"] = "Total Saison", ""
+                totaux = totaux.set_index(["Annee", "ClassementJ1"], append=True)
+                
+                # Fusion et tri alphabétique des index
+                tcd_bilan = pd.concat([tcd_base, totaux]).sort_index(level=["Equipe1", "Joueur1"])
+                
+                # Calculs des ratios de performance
                 tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
                 tcd_bilan = tcd_bilan[["MatchNonFF", "Match", "VictoireJ1", "Taux Victoires", "PointsJ1"]]
+                
+                # Renommage des colonnes selon vos exigences
                 tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés J1"]
 
                 # Règle CSS personnalisée pour mettre en valeur les lignes de totaux
@@ -112,5 +119,5 @@ def execution_app(conn):
                     .to_html(escape=False)
                 )
                 
-                # Rendu du tableau final
+                # Rendu du tableau final épuré
                 st.write(html_table, unsafe_allow_html=True)
