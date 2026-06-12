@@ -151,10 +151,10 @@ try:
                     # 3. Fusion des données
                     tcd_bilan = pd.concat([tcd_base, totaux_joueurs])
                     
-                    # 4. Tri personnalisé (Total placé au-dessus du détail)
+                    # 4. Tri personnalisé (Total placé au-dessus du détail en triant sur la colonne virtuelle / index)
                     tcd_bilan = tcd_bilan.sort_index(
-                        level=["Equipe1", "Joueur1", "Semaine"],
-                        key=lambda x: x.map(lambda val: "0" if val == "TOTAL JOUEUR" else str(val)) if x.name == "Semaine" else x
+                        level=["Equipe1", "Joueur1", "ClassementJ1"],
+                        key=lambda x: x.map(lambda val: "0" if val == "Total Saison" else str(val)) if x.name == "ClassementJ1" else x
                     )
                     
                     # 5. Calcul des pourcentages et structuration finale
@@ -188,7 +188,8 @@ try:
                         {"selector": "th, td", "props": [
                             ("padding", "8px !important")
                         ]},
-                        {"selector": "tr:has(th:contains('TOTAL')), tr:has(td:contains('TOTAL'))", "props": [
+                        # CORRECTION ICI : Recherche de la chaîne 'Total Saison' dans les cellules d'en-tête et de données
+                        {"selector": "tr:has(th:contains('Total Saison')), tr:has(td:contains('Total Saison'))", "props": [
                             ("font-weight", "bold !important"),
                             ("background-color", "#edf2f7 !important")
                         ]}
