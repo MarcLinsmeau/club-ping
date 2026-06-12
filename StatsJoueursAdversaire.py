@@ -1,47 +1,61 @@
-# NomDeVotreNouvelleSousApp.py
+# StatsJoueursAdversaire.py
 import streamlit as st
 import pandas as pd
-import utils
+import altair as alt
+import utils  # Importation essentielle pour la gestion des filtres
 
 def execution_app(conn):
-    """Conteneur principal de la nouvelle sous-app (Trié par Joueur puis par Année)."""
+    """Conteneur principal de l'application de statistiques hebdomadaires des joueurs."""
     
     # --- ÉTAT DES SESSIONS & CALLBACKS DE FILTRES ---
-    def reset_filtres():
-        """Réinitialise le filtre descendant des joueurs lorsque les clubs changent."""
+    def reset_filtres(niveau):
+        """Réinitialise en cascade les filtres descendants."""
+        if niveau <= 1:
+            st.session_state.clubs_choisis = []
         st.session_state.joueurs_choisis = []
 
-    # Initialisation des variables de session indispensables
-    for key, val in [("clubs_choisis", []), ("joueurs_choisis", [])]:
+    # Initialisation des variables de session indispensables aux contrôles tactiles
+    for key, val in [("annee_choisie", None), ("clubs_choisis", []), ("joueurs_choisis", [])]:
         if key not in st.session_state:
             st.session_state[key] = val
 
     # --- INTERFACE UTILISATEUR : FILTRES ACTIFS ---
     st.subheader("🔍 Filtres de sélection (Multi-choix tactiles)")
     
-    # Étape 1 : Choix des clubs parmi TOUS les clubs de la base
-    st.write("**🏢 1. Sélectionnez un ou plusieurs Clubs (Equipe 1) :**")
+    # Étape 1 : Choix de l'année
+    st.write("**📅 1. Sélectionnez l'Année de recherche :**")
     st.segmented_control(
-        "Clubs", options=utils.charger_clubs_uniques(conn), 
-        key="clubs_choisis", selection_mode="multi", on_change=reset_filtres, label_visibility="collapsed"
+        "Année", options=utils.charger_annees(conn), key="annee_choisie", 
+        selection_mode="single", on_change=reset_filtres, args=(1,), label_visibility="collapsed"
     )
 
-    # Étape 2 : Choix des joueurs (dépend uniquement des clubs sélectionnés)
-    if st.session_state.clubs_choisis:
+    # Étape 2 : Choix des clubs (dépend de l'année sélectionnée)
+    if st.session_state.annee_choisie:
         st.markdown("---")
-        st.write("**👤 2. Sélectionnez un ou plusieurs Joueurs (Joueur 1) :**")
+        st.write("**🏢 2. Sélectionnez un ou plusieurs Clubs (Equipe 1) :**")
         st.segmented_control(
-            "Joueurs", options=utils.charger_joueurs_par_clubs(conn, st.session_state.clubs_choisis), 
+            "Clubs", options=utils.charger_clubs_par_annee(conn, st.session_state.annee_choisie), 
+            key="clubs_choisis", selection_mode="multi", on_change=reset_filtres, args=(2,), label_visibility="collapsed"
+        )
+
+    # Étape 3 : Choix des joueurs (dépend de l'année et du club sélectionnés)
+    if st.session_state.annee_choisie and st.session_state.clubs_choisis:
+        st.markdown("---")
+        st.write("**👤 3. Sélectionnez un ou plusieurs Joueurs (Joueur 1) :**")
+        st.segmented_control(
+            "Joueurs", options=utils.charger_joueurs_complet(conn, st.session_state.annee_choisie, st.session_state.clubs_choisis), 
             key="joueurs_choisis", selection_mode="multi", label_visibility="collapsed"
         )
 
     # --- SÉCURITÉ DE CONTRÔLE ET REQUÊTAGE ---
     st.markdown("---")
-    if not st.session_state.clubs_choisis:
-        st.info("💡 En attente de vos critères : Veuillez cocher au moins un **Club** pour commencer.")
+    if not st.session_state.annee_choisie:
+        st.info("💡 En attente de vos critères : Veuillez cocher une **Année** pour commencer.")
+    elif not st.session_state.clubs_choisis:
+        st.info("💡 Étape suivante : Veuillez cocher au moins un **Club** pour charger les joueurs correspondants.")
     else:
-        # Requête Supabase globale
-        req = conn.table("test").select("*").in_("Equipe1", st.session_state.clubs_choisis)
+        # Requête Supabase filtrée
+        req = conn.table("test").select("*").eq("Annee", st.session_state.annee_choisie).in_("Equipe1", st.session_state.clubs_choisis)
         if st.session_state.joueurs_choisis:
             req = req.in_("Joueur1", st.session_state.joueurs_choisis)
 
@@ -50,47 +64,74 @@ def execution_app(conn):
         if df_res.empty:
             st.warning("⚠️ Aucun record trouvé pour cette combinaison précise.")
         else:
-            colonnes_requises = ["Match", "VictoireJ1", "ClassementJ2"]
+            colonnes_requises = ["MatchNonFF", "Match", "VictoireJ1", "PointsJ1"]
             if not all(c in df_res.columns for c in colonnes_requises):
-                st.error("Une ou plusieurs colonnes de calcul indispensables (Match, VictoireJ1, ClassementJ2) sont introuvables.")
+                st.error("Une ou plusieurs colonnes de calcul indispensables sont introuvables en base de données.")
                 st.stop()
                 
-            # --- CONFIGURATION DU TCD : JOUEUR ET ANNÉE EN PREMIER ---
-            # Index réordonné : Joueur1 en premier, suivi de Annee
-            tcd_bilan = df_res.pivot_table(
-                index=["Joueur1", "Annee", "Equipe1", "ClassementJ1", "ClassementJ2"], 
-                values=["Match", "VictoireJ1"], 
-                aggfunc={"Match": "size", "VictoireJ1": "sum"}, 
+            # --- 1. SÉCURISATION ET CRÉATION DU TCD ---
+            tcd_base = df_res.pivot_table(
+                index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
+                values=colonnes_requises, 
+                aggfunc={"MatchNonFF": "size", "Match": "size", "VictoireJ1": "sum", "PointsJ1": "sum"}, 
                 fill_value=0
-            )
+            ).reindex(columns=colonnes_requises)
 
-            if tcd_bilan.empty:
+            if tcd_base.empty:
                 st.info("Données insuffisantes pour générer ce tableau croisé.")
             else:
-                # Forçage du format String sur le niveau de l'index 'Annee' (situé à la position 1 désormais)
-                tcd_bilan.index = tcd_bilan.index.set_levels(tcd_bilan.index.levels[1].astype(str), level=1)
+                tcd_base.index = tcd_base.index.set_levels(tcd_base.index.levels[4].astype(str), level=4)
                 
-                # --- APPLICATION DU TRI ---
-                # Tri avec priorité absolue au Joueur puis à l'Année
-                tcd_bilan = tcd_bilan.sort_index(level=["Joueur1", "Annee"])
-                
-                # Calcul du % de Victoires
-                tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
-                
-                # Réorganisation finale des colonnes de données
-                tcd_bilan = tcd_bilan[["Match", "VictoireJ1", "Taux Victoires"]]
-                tcd_bilan.columns = ["Matchs Joués", "Victoires", "% Victoire"]
+                # --- 2. ANALYSE GRAPHIQUE (UNIQUEMENT MODE MONO-JOUEUR) ---
+                if len(st.session_state.joueurs_choisis) == 1:
+                    st.subheader(f"📊 Analyse Graphique — {st.session_state.joueurs_choisis[0]}")
+                    
+                    df_graph = tcd_base.reset_index()
+                    df_graph["semaine_num"] = df_graph["Semaine"].map(utils.parse_semaine)
+                    df_graph = df_graph.sort_values(by="semaine_num")
+                    df_graph["Points Cumulés"] = df_graph["PointsJ1"].cumsum()
+                    
+                    # Graphe 1 : Histogramme Hebdomadaire
+                    st.write("**Points gagnés / perdus par semaine**")
+                    chart_base = alt.Chart(df_graph).encode(x=alt.X("Semaine:N", sort=alt.SortField(field="semaine_num", order="ascending")))
+                    barres = chart_base.mark_bar(color="#22c55e").encode(y=alt.Y("PointsJ1:Q"))
+                    
+                    labels_pos = chart_base.mark_text(dy=-10, align="center", fontWeight="bold").transform_filter("datum.PointsJ1 >= 0").encode(y="PointsJ1:Q", text=alt.Text("PointsJ1:Q", format="+d"))
+                    labels_neg = chart_base.mark_text(dy=10, align="center", fontWeight="bold").transform_filter("datum.PointsJ1 < 0").encode(y="PointsJ1:Q", text=alt.Text("PointsJ1:Q", format="+d"))
+                    st.altair_chart(barres + labels_pos + labels_neg, use_container_width=True)
+                    
+                    # Graphe 2 : Tendance Cumulative
+                    st.write("**Évolution du cumul sur la saison**")
+                    chart_cumul = alt.Chart(df_graph).encode(x=alt.X("Semaine:N", sort=alt.SortField(field="semaine_num", order="ascending")), y="Points Cumulés:Q")
+                    courbe = chart_cumul.mark_line(color="#3b82f6", strokeWidth=3)
+                    points = chart_cumul.mark_circle(color="#3b82f6", size=60)
+                    labels_cumul = chart_cumul.mark_text(dy=-12, align="center", fontWeight="bold").encode(text=alt.Text("Points Cumulés:Q", format="d"))
+                    st.altair_chart(courbe + points + labels_cumul, use_container_width=True)
+                    st.markdown("---")
 
-                st.subheader(f"📋 Tableau de synthèse analytique ({len(df_res)} match(s) analysé(s))")
+                # --- 3. CALCUL DU RESUMÉ & INJECTION DU TABLEAU HTML/CSS ---
+                totaux = tcd_base.groupby(level=["Equipe1", "Joueur1"]).sum()
+                totaux["ClassementJ1"], totaux["Division"], totaux["Semaine"] = "Total Saison", "", ""
+                totaux = totaux.set_index(["ClassementJ1", "Division", "Semaine"], append=True)
                 
-                # Génération du rendu HTML propre
+                tcd_bilan = pd.concat([tcd_base, totaux]).sort_index(level=["Equipe1", "Joueur1", "Semaine"], key=lambda x: x.map(utils.parse_semaine) if x.name == "Semaine" else x)
+                tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
+                tcd_bilan = tcd_bilan[["MatchNonFF", "Match", "VictoireJ1", "Taux Victoires", "PointsJ1"]]
+                tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés J1"]
+
+                def injection_style_ligne(row):
+                    return ["font-weight: bold !important;" + (" background-color: #edf2f7 !important;" if c != "% Victoires" else "") if "Total Saison" in row.name else "" for c in row.index]
+
+                st.subheader(f"📋 Tableau de synthèse des performances ({len(df_res)} match(s) analysé(s))")
+                
                 html_table = (
-                    tcd_bilan.style.format({"Matchs Joués": "{:,.0f}", "Victoires": "{:,.0f}", "% Victoire": "{:.1f}%"})
-                    .background_gradient(cmap="RdYlGn", subset=["% Victoire"], vmin=0, vmax=100, axis=0)
+                    tcd_bilan.style.format({"Sélections": "{:,.0f}", "Matchs Joués": "{:,.0f}", "Matchs Gagnés": "{:,.0f}", "% Victoires": "{:.1f}%", "Points Gagnés J1": "{:+.0f}"})
+                    .background_gradient(cmap="RdYlGn", subset=["% Victoires"], vmin=0, vmax=100, axis=0)
+                    .apply(injection_style_ligne, axis=1)
                     .set_table_styles([
-                        {"selector": "th, td, th.row_heading, th.col_heading, td.data, .blank", "props": [("vertical-align", "top !important"), ("text-align", "left !important"), ("border", "1px solid #555555 !important"), ("padding", "8px !important")]}
+                        {"selector": "th, td, th.row_heading, th.col_heading, td.data, .blank", "props": [("vertical-align", "top !important"), ("text-align", "left !important"), ("border", "1px solid #555555 !important"), ("padding", "8px !important")]},
+                        {"selector": "tr:has(th:contains('Total Saison')) th", "props": [("font-weight", "bold !important"), ("background-color", "#edf2f7 !important")]}
                     ], overwrite=False)
                     .to_html(escape=False)
                 )
-                
                 st.write(html_table, unsafe_allow_html=True)
