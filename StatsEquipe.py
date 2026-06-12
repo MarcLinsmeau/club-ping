@@ -4,7 +4,7 @@ import pandas as pd
 import utils
 
 def execution_app(conn):
-    """Conteneur : Semaine en index, Joueurs et Métriques en colonnes."""
+    """Conteneur : Semaine en index, Joueurs en colonnes, 4 métriques en sous-colonnes."""
     
     # --- ÉTAT DES SESSIONS ---
     def reset_filtres(niveau):
@@ -41,7 +41,7 @@ def execution_app(conn):
         if df_res.empty:
             st.warning("⚠️ Aucun record trouvé.")
         else:
-            # 1. Calcul des agrégats par Semaine et Joueur
+            # 1. Calcul agrégé
             df_g = df_res.groupby(["Semaine", "Joueur1"]).agg(
                 Sélections=("MatchNonFF", "size"),
                 Matchs_Joués=("Match", "size"),
@@ -49,15 +49,14 @@ def execution_app(conn):
             )
             df_g["% Victoire"] = (df_g["Victoires"] / df_g["Matchs_Joués"] * 100).fillna(0)
             
-            # 2. Pivotement : On déplace Joueur1 en colonnes
-            # Cela crée un MultiIndex sur les colonnes (Joueur, Métrique)
-            df_pivot = df_g.unstack(level="Joueur1")
+            # 2. Transposition pour avoir [Joueur, Métrique] en colonnes
+            # On utilise unstack pour déplacer les métriques en colonnes, puis on réorganise
+            df_pivot = df_g.unstack(level="Joueur1").swaplevel(0, 1, axis=1).sort_index(axis=1)
             
-            # 3. Tri chronologique de l'index Semaine
+            # 3. Tri chronologique
             df_pivot = df_pivot.sort_index(key=lambda x: x.map(utils.parse_semaine))
 
             st.subheader(f"📋 Synthèse hebdomadaire ({len(df_res)} match(s))")
             
-            # 4. Affichage robuste avec st.dataframe
-            # Le MultiIndex des colonnes sera géré nativement par Streamlit
+            # 4. Affichage
             st.dataframe(df_pivot, use_container_width=True)
