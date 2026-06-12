@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from st_supabase_connection import SupabaseConnection
 
+# Configuration initiale de la page
 st.set_page_config(page_title="Ping Club - Recherche", page_icon="🏓", layout="wide")
 st.title("🏓 Recherche Avancée des Matchs")
 
@@ -9,7 +10,7 @@ try:
     # 1. Connexion à Supabase
     conn = st.connection("supabase", type=SupabaseConnection)
 
-    # --- FONCTIONS D'APPEL DES RPC (VALEURS UNIQUES EN CASCADE) ----
+    # --- REQUÊTES DATA (RPC ET TABLES) ---
     @st.cache_data(ttl=300)
     def charger_annees():
         res = conn.client.rpc("obtenir_annees_uniques").execute()
@@ -22,204 +23,122 @@ try:
 
     @st.cache_data(ttl=300)
     def charger_joueurs(annee, liste_clubs):
-        # On récupère l'ensemble des joueurs appartenant à tous les clubs sélectionnés
-        joueurs_globaux = set()
-        for club in liste_clubs:
-            res = conn.client.rpc("obtenir_joueurs_par_annee_et_club", {"annee_recherche": annee, "club_recherche": club}).execute()
-            if res.data:
-                for row in res.data:
-                    joueurs_globaux.add(row["joueur"])
-        return sorted(list(joueurs_globaux))
+        # OPTIMISATION : Un seul appel RPC global en utilisant le filtre `.in_` sur les clubs
+        res = conn.client.table("test").select("Joueur1").eq("Annee", annee).in_("Equipe1", liste_clubs).execute()
+        return sorted(list({row["Joueur1"] for row in res.data if row.get("Joueur1")})) if res.data else []
 
-
-    # --- FONCTIONS DE CALLBACK (Nettoyage en cascade) ---
-    def changement_annee():
-        st.session_state.clubs_choisis = []
+    # --- CALLBACKS ET ETAT DE SESSIONS ---
+    def reset_filtres(niveau):
+        if niveau <= 1:
+            st.session_state.clubs_choisis = []
         st.session_state.joueurs_choisis = []
 
-    def changement_club():
-        st.session_state.joueurs_choisis = []
+    for key, val in [("annee_choisie", None), ("clubs_choisis", []), ("joueurs_choisis", [])]:
+        if key not in st.session_state:
+            st.session_state[key] = val
 
-
-    # --- INITIALISATION DES VARIABLES DANS LE STATE ---
-    if "annee_choisie" not in st.session_state:
-        st.session_state.annee_choisie = None
-    if "clubs_choisis" not in st.session_state:
-        st.session_state.clubs_choisis = []
-    if "joueurs_choisis" not in st.session_state:
-        st.session_state.joueurs_choisis = []
-
-
-    # --- INTERFACE ET FILTRES MULTI-SÉLECTION ---
+    # --- INTERFACE UTILISATEUR (FILTRES TACTILES) ---
     st.subheader("🔍 Filtres de sélection (Multi-choix tactiles)")
 
-    # 1. FILTRE ANNÉE (Sélection unique pour cibler une saison)
-    liste_annees = charger_annees()
+    # Filtre 1 : Année
     st.write("**📅 1. Sélectionnez l'Année de recherche :**")
     st.segmented_control(
-        label="Année",
-        options=list(liste_annees),
-        key="annee_choisie",
-        selection_mode="single",
-        on_change=changement_annee,
-        label_visibility="collapsed"
+        "Année", options=charger_annees(), key="annee_choisie", 
+        selection_mode="single", on_change=reset_filtres, args=(1,), label_visibility="collapsed"
     )
 
-    annee_valide = st.session_state.annee_choisie is not None
-
-    # 2. FILTRE CLUB (Multi-sélection active)
-    if annee_valide:
+    # Filtre 2 : Clubs
+    if st.session_state.annee_choisie:
         st.markdown("---")
-        liste_clubs = charger_clubs(st.session_state.annee_choisie)
         st.write("**🏢 2. Sélectionnez un ou plusieurs Clubs (Equipe 1) :**")
         st.segmented_control(
-            label="Clubs",
-            options=list(liste_clubs),
-            key="clubs_choisis",
-            selection_mode="multi",  # Multi-clubs activé
-            on_change=changement_club,
-            label_visibility="collapsed"
+            "Clubs", options=charger_clubs(st.session_state.annee_choisie), key="clubs_choisis", 
+            selection_mode="multi", on_change=reset_filtres, args=(2,), label_visibility="collapsed"
         )
 
-    clubs_valides = annee_valide and len(st.session_state.clubs_choisis) > 0
-
-    # 3. FILTRE JOUEUR (Multi-sélection active)
-    if clubs_valides:
+    # Filtre 3 : Joueurs
+    if st.session_state.annee_choisie and st.session_state.clubs_choisis:
         st.markdown("---")
-        liste_joueurs = charger_joueurs(st.session_state.annee_choisie, st.session_state.clubs_choisis)
         st.write("**👤 3. Sélectionnez un ou plusieurs Joueurs (Joueur 1) :**")
         st.segmented_control(
-            label="Joueurs",
-            options=list(liste_joueurs),
-            key="joueurs_choisis",
-            selection_mode="multi",  # Multi-joueurs activé
-            label_visibility="collapsed"
+            "Joueurs", options=charger_joueurs(st.session_state.annee_choisie, st.session_state.clubs_choisis), 
+            key="joueurs_choisis", selection_mode="multi", label_visibility="collapsed"
         )
 
-
-    # --- ENCLENCHEMENT DE LA REQUÊTE ET GENERATION TCD ---
+    # --- CONTROLE LOGIQUE ET REQUÊTE PRINCIPALE ---
     st.markdown("---")
-    if not annee_valide:
+    if not st.session_state.annee_choisie:
         st.info("💡 En attente de vos critères : Veuillez cocher une **Année** pour commencer.")
-    elif not clubs_valides:
+    elif not st.session_state.clubs_choisis:
         st.info("💡 Étape suivante : Veuillez cocher au moins un **Club** pour charger les joueurs correspondants.")
     else:
-        # Construction de la requête avec les filtres cumulés .in_()
-        requete = conn.table("test").select("*").eq("Annee", st.session_state.annee_choisie).in_("Equipe1", st.session_state.clubs_choisis)
-
-        # Si des joueurs spécifiques sont cochés, on applique le filtre, sinon on prend tout le monde
+        req = conn.table("test").select("*").eq("Annee", st.session_state.annee_choisie).in_("Equipe1", st.session_state.clubs_choisis)
         if st.session_state.joueurs_choisis:
-            requete = requete.in_("Joueur1", st.session_state.joueurs_choisis)
+            req = req.in_("Joueur1", st.session_state.joueurs_choisis)
 
-        reponse = requete.limit(50000).execute()
-        df_resultat = pd.DataFrame(reponse.data)
+        df_res = pd.DataFrame(req.limit(50000).execute().data)
 
-        if df_resultat.empty:
+        if df_res.empty:
             st.warning("⚠️ Aucun record trouvé pour cette combinaison précise.")
         else:
-            # Validation des colonnes requises pour le calcul
             colonnes_requises = ["MatchNonFF", "Match", "VictoireJ1", "PointsJ1"]
-            if all(col in df_resultat.columns for col in colonnes_requises):
+            if all(c in df_res.columns for c in colonnes_requises):
                 
-                # 1. Pivot de table initial
-                tcd_base = df_resultat.pivot_table(
+                # 1. Pivot de Table initial
+                tcd_base = df_res.pivot_table(
                     index=["Equipe1", "Joueur1", "ClassementJ1", "Division", "Semaine"], 
-                    values=colonnes_requises,
-                    aggfunc={
-                        "MatchNonFF": "size",   
-                        "Match": "size",    
-                        "VictoireJ1": "sum",
-                        "PointsJ1": "sum"
-                    },
+                    values=colonnes_requises, 
+                    aggfunc={"MatchNonFF": "size", "Match": "size", "VictoireJ1": "sum", "PointsJ1": "sum"}, 
                     fill_value=0
-                )
+                ).reindex(columns=colonnes_requises) # Force l'ordre natif des colonnes
 
                 if not tcd_base.empty:
-                    tcd_base = tcd_base[colonnes_requises]
-                    
-                    # Normalisation du niveau "Semaine" (on s'assure que c'est du texte brut pour éviter les bugs)
                     tcd_base.index = tcd_base.index.set_levels(tcd_base.index.levels[4].astype(str), level=4)
                     
-                    # 2. Calcul des sous-totaux par joueur
-                    totaux_joueurs = tcd_base.groupby(level=["Equipe1", "Joueur1"]).sum()
+                    # 2. Sous-totaux par joueur
+                    totaux = tcd_base.groupby(level=["Equipe1", "Joueur1"]).sum()
+                    totaux["ClassementJ1"], totaux["Division"], totaux["Semaine"] = "Total Saison", "", ""
+                    totaux = totaux.set_index(["ClassementJ1", "Division", "Semaine"], append=True)
                     
-                    totaux_joueurs["ClassementJ1"] = "Total Saison"
-                    totaux_joueurs["Division"] = ""
-                    totaux_joueurs["Semaine"] = ""
-                    totaux_joueurs = totaux_joueurs.set_index(["ClassementJ1", "Division", "Semaine"], append=True)
-                    
-                    # 3. Fusion des données
-                    tcd_bilan = pd.concat([tcd_base, totaux_joueurs])
-                    
-                    # --- MODIFICATION ICI : TRI CHRONOLOGIQUE DES SEMAINES PAR JOUEUR ---
-                    # Fonction pour convertir la semaine en valeur numérique lors du tri (ex: "Semaine 5" ou "5" -> 5)
-                    def cle_tri_semaine(valeur):
-                        if valeur == "":  # C'est la ligne "Total Saison"
-                            return -1     # -1 permet de la placer tout en haut du joueur (remplacer par 999 pour la mettre tout en bas)
-                        
-                        # Extraction des chiffres si la colonne contient du texte comme "Semaine 12" ou "S12"
-                        chiffres = "".join([c for c in str(valeur) if c.isdigit()])
-                        return int(chiffres) if chiffres else 0
+                    # 3. Fusion et Tri Chronologique (Gestion de la ligne "Total Saison" à -1)
+                    def parse_semaine(val):
+                        if val == "": return -1
+                        digits = "".join([c for c in str(val) if c.isdigit()])
+                        return int(digits) if digits else 0
 
-                    tcd_bilan = tcd_bilan.sort_index(
+                    tcd_bilan = pd.concat([tcd_base, totaux]).sort_index(
                         level=["Equipe1", "Joueur1", "Semaine"],
-                        key=lambda x: x.map(cle_tri_semaine) if x.name == "Semaine" else x
+                        key=lambda x: x.map(parse_semaine) if x.name == "Semaine" else x
                     )
                     
-                    # 5. Calcul des pourcentages et structuration finale
+                    # 4. Métriques calculées et renommage final
                     tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
                     tcd_bilan = tcd_bilan[["MatchNonFF", "Match", "VictoireJ1", "Taux Victoires", "PointsJ1"]]
                     tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés J1"]
 
-                    # Définition des priorités de style (Gras partout, fond gris sauf sur le % colorié)
-                    def styliser_ligne_total(row):
+                    # 5. Injection de Styles CSS avancés (Mise en gras sans rupture du dégradé)
+                    def injection_style_ligne(row):
                         if "Total Saison" in row.name:
-                            styles = []
-                            for col in row.index:
-                                if col == "% Victoires":
-                                    styles.append("font-weight: bold !important;")
-                                else:
-                                    styles.append("font-weight: bold !important; background-color: #edf2f7 !important;")
-                            return styles
+                            return ["font-weight: bold !important;" if c == "% Victoires" else "font-weight: bold !important; background-color: #edf2f7 !important;" for c in row.index]
                         return [""] * len(row)
 
-                    # Affichage final stylisé
-                    st.subheader(f"📋 Tableau de synthèse des performances ({len(df_resultat)} match(s) analysé(s))")
+                    st.subheader(f"📋 Tableau de synthèse des performances ({len(df_res)} match(s) analysé(s))")
                     
-                    tcd_style = tcd_bilan.style.format({
-                        "Sélections": "{:,.0f}",
-                        "Matchs Joués": "{:,.0f}",
-                        "Matchs Gagnés": "{:,.0f}",
-                        "% Victoires": "{:.1f}%",
-                        "Points Gagnés J1": "{:+.0f}"
-                    }).background_gradient(
-                        cmap="RdYlGn", 
-                        subset=["% Victoires"],
-                        vmin=0,
-                        vmax=100,
-                        axis=0
-                    ).apply(
-                        styliser_ligne_total, 
-                        axis=1
-                    ).set_table_styles([
-                        {"selector": "th, td, th.row_heading, th.col_heading, td.data, .blank", "props": [
-                            ("vertical-align", "top !important"),
-                            ("text-align", "left !important")
-                        ]},
-                        {"selector": "th, td, th.row_heading, th.col_heading, td.data", "props": [
-                            ("border", "1px solid #555555 !important")
-                        ]},
-                        {"selector": "th, td", "props": [
-                            ("padding", "8px !important")
-                        ]},
-                        {"selector": "tr:has(th:contains('Total Saison')) th", "props": [
-                            ("font-weight", "bold !important"),
-                            ("background-color", "#edf2f7 !important")
-                        ]}
-                    ], overwrite=False)
+                    html_table = (
+                        tcd_bilan.style.format({
+                            "Sélections": "{:,.0f}", "Matchs Joués": "{:,.0f}", "Matchs Gagnés": "{:,.0f}",
+                            "% Victoires": "{:.1f}%", "Points Gagnés J1": "{:+.0f}"
+                        })
+                        .background_gradient(cmap="RdYlGn", subset=["% Victoires"], vmin=0, vmax=100, axis=0)
+                        .apply(injection_style_ligne, axis=1)
+                        .set_table_styles([
+                            {"selector": "th, td, th.row_heading, th.col_heading, td.data, .blank", "props": [("vertical-align", "top !important"), ("text-align", "left !important"), ("border", "1px solid #555555 !important"), ("padding", "8px !important")]},
+                            {"selector": "tr:has(th:contains('Total Saison')) th", "props": [("font-weight", "bold !important"), ("background-color", "#edf2f7 !important")]}
+                        ], overwrite=False)
+                        .to_html(escape=False)
+                    )
                     
-                    st.write(tcd_style.to_html(escape=False), unsafe_allow_html=True)
-                    
+                    st.write(html_table, unsafe_allow_html=True)
                 else:
                     st.info("Données insuffisantes pour générer ce tableau croisé.")
             else:
