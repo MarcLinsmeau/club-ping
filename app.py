@@ -34,11 +34,7 @@ try:
     elif mode == "StatsJoueursAdversaire":
         from StatsJoueursAdversaire import execution_app
         execution_app(conn)
-        
-    elif mode == "NomDeVotreNouvelleSousApp":  # ← Ajoutez votre nouveau mode ici
-        from NomDeVotreNouvelleSousApp import execution_app
-        execution_app(conn)
-        
+  
     else:
         st.error(f"Le mode demandé '{mode}' est introuvable ou non configuré.")
 
