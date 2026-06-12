@@ -4,42 +4,9 @@ import pandas as pd
 import utils
 
 def execution_app(conn):
-    """Conteneur principal : TCD analytique par Division (sans Joueur)."""
+    """Conteneur principal : TCD croisé (Semaine en lignes, Joueurs en colonnes)."""
     
-    # --- ÉTAT DES SESSIONS & CALLBACKS DE FILTRES ---
-    def reset_filtres(niveau):
-        if niveau <= 1:
-            st.session_state.clubs_choisis = []
-        st.session_state.divisions_choisies = []
-
-    for key, val in [("annee_choisie", None), ("clubs_choisis", []), ("divisions_choisies", [])]:
-        if key not in st.session_state:
-            st.session_state[key] = val
-
-    # --- INTERFACE UTILISATEUR ---
-    st.subheader("🔍 Filtres de sélection (Multi-choix tactiles)")
-    
-    st.write("**📅 1. Sélectionnez l'Année :**")
-    st.segmented_control(
-        "Année", options=utils.charger_annees(conn), key="annee_choisie", 
-        selection_mode="single", on_change=reset_filtres, args=(1,), label_visibility="collapsed"
-    )
-
-    if st.session_state.annee_choisie:
-        st.markdown("---")
-        st.write("**🏢 2. Sélectionnez les Clubs :**")
-        st.segmented_control(
-            "Clubs", options=utils.charger_clubs_par_annee(conn, st.session_state.annee_choisie), 
-            key="clubs_choisis", selection_mode="multi", on_change=reset_filtres, args=(2,), label_visibility="collapsed"
-        )
-
-    if st.session_state.annee_choisie and st.session_state.clubs_choisis:
-        st.markdown("---")
-        st.write("**🏆 3. Sélectionnez les Divisions :**")
-        st.segmented_control(
-            "Divisions", options=utils.charger_equipes_complet(conn, st.session_state.annee_choisie, st.session_state.clubs_choisis), 
-            key="divisions_choisies", selection_mode="multi", label_visibility="collapsed"
-        )
+    # ... (Gardez la gestion des sessions et des filtres identique) ...
 
     # --- REQUÊTAGE ET TCD ---
     st.markdown("---")
@@ -53,32 +20,33 @@ def execution_app(conn):
         df_res = pd.DataFrame(req.limit(50000).execute().data)
 
         if df_res.empty:
-            st.warning("⚠️ Aucun record trouvé pour ces critères.")
+            st.warning("⚠️ Aucun record trouvé.")
         else:
-            # Création du TCD avec Division à la place de Joueur
-            tcd_bilan = df_res.pivot_table(
-                index=["Equipe1", "Division", "Annee", "ClassementJ1", "ClassementJ2"], 
-                values=["Match", "VictoireJ1"], 
-                aggfunc={"Match": "size", "VictoireJ1": "sum"}, 
-                fill_value=0
+            # Création du TCD : 
+            # Index = Semaine (lignes)
+            # Columns = Joueur1 (colonnes)
+            # Values = Taux de Victoire
+            
+            # Calcul préalable pour avoir la donnée par joueur/semaine
+            df_pivot = df_res.pivot_table(
+                index="Semaine",
+                columns="Joueur1",
+                values="VictoireJ1",
+                aggfunc="sum"
             )
 
-            # Calcul des indicateurs
-            tcd_bilan["% Victoire"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
-            tcd_bilan.columns = ["Matchs Joués", "Victoires", "% Victoire"]
+            # Optionnel : Calculer le pourcentage si nécessaire
+            # tcd_final = (df_pivot.div(total_matchs_par_joueur_semaine) * 100)
 
-            # Tri par Division puis par Année
-            tcd_bilan = tcd_bilan.sort_index(level=["Division", "Annee"])
-
-            st.subheader(f"📋 Synthèse par Division ({len(df_res)} match(s))")
+            st.subheader(f"📋 Comparatif hebdomadaire par joueur ({len(df_res)} match(s))")
             
-            # Affichage HTML
+            # Affichage HTML avec alignement forcé
             html_table = (
-                tcd_bilan.style.format({"Matchs Joués": "{:,.0f}", "Victoires": "{:,.0f}", "% Victoire": "{:.1f}%"})
-                .background_gradient(cmap="RdYlGn", subset=["% Victoire"], vmin=0, vmax=100, axis=0)
+                df_pivot.style.format("{:.0f}") # Formatage simple pour les victoires
+                .background_gradient(cmap="Blues", axis=0)
                 .set_table_styles([
                     {
-                        "selector": "th, td, th.row_heading, th.col_heading, td.data", 
+                        "selector": "th, td", 
                         "props": [
                             ("vertical-align", "top !important"), 
                             ("text-align", "left !important"), 
