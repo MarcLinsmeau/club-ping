@@ -4,19 +4,17 @@ import pandas as pd
 import utils
 
 def execution_app(conn):
-    """Conteneur principal : TCD croisé avec sous-indicateurs par joueur."""
+    """Conteneur : TCD avec Joueurs en lignes et Semaines en colonnes."""
     
-    # --- ÉTAT DES SESSIONS ---
+    # --- ÉTAT DES SESSIONS & CALLBACKS ---
     def reset_filtres(niveau):
-        if niveau <= 1:
-            st.session_state.clubs_choisis = []
+        if niveau <= 1: st.session_state.clubs_choisis = []
         st.session_state.divisions_choisies = []
 
     for key, val in [("annee_choisie", None), ("clubs_choisis", []), ("divisions_choisies", [])]:
-        if key not in st.session_state:
-            st.session_state[key] = val
+        if key not in st.session_state: st.session_state[key] = val
 
-    # --- INTERFACE UTILISATEUR ---
+    # --- INTERFACE ---
     st.subheader("🔍 Filtres de sélection")
     st.write("**📅 1. Année :**")
     st.segmented_control("Année", options=utils.charger_annees(conn), key="annee_choisie", 
@@ -43,26 +41,27 @@ def execution_app(conn):
         if df_res.empty:
             st.warning("⚠️ Aucun record trouvé.")
         else:
-            # 1. Calcul des indicateurs par Semaine et Joueur
-            tcd = df_res.groupby(["Semaine", "Joueur1"]).agg(
+            # 1. Calcul par Joueur et par Semaine
+            tcd = df_res.groupby(["Joueur1", "Semaine"]).agg(
                 Sélections=("MatchNonFF", "size"),
                 Matchs_Joués=("Match", "size"),
                 Victoires=("VictoireJ1", "sum")
             )
             tcd["% Victoire"] = (tcd["Victoires"] / tcd["Matchs_Joués"] * 100).fillna(0)
             
-            # 2. Pivotement : les Joueurs deviennent les colonnes principales avec les indicateurs en sous-colonnes
-            df_pivot = tcd.unstack(level="Joueur1")
+            # 2. Inversion : Joueurs en index, Semaines en colonnes (avec les 4 indicateurs en sous-index)
+            # On utilise stack() pour mettre les indicateurs en colonnes, puis unstack() pour les semaines
+            df_pivot = tcd.unstack(level="Semaine")
             
-            # 3. Tri des semaines
-            df_pivot = df_pivot.sort_index(key=lambda x: x.map(utils.parse_semaine))
+            # Tri des colonnes Semaines chronologiquement
+            df_pivot = df_pivot.sort_index(axis=1, level="Semaine", key=lambda x: x.map(utils.parse_semaine))
 
-            st.subheader(f"📋 Synthèse hebdomadaire ({len(df_res)} match(s))")
+            st.subheader(f"📋 Synthèse par Joueur ({len(df_res)} match(s))")
             
-            # 4. Affichage HTML avec alignement forcé
+            # 3. Affichage HTML
             html_table = (
-                df_pivot.style.format("{:.0f}") # Formatage général
-                .format({c: "{:.1f}%" for c in df_pivot.columns if "% Victoire" in c[0]}) # Formatage spécifique pour le %
+                df_pivot.style.format("{:.0f}")
+                .format({c: "{:.1f}%" for c in df_pivot.columns if c[0] == "% Victoire"})
                 .background_gradient(cmap="Blues", subset=pd.IndexSlice[:, pd.IndexSlice["Victoires", :]], axis=None)
                 .set_table_styles([
                     {"selector": "th, td, th.row_heading, th.col_heading, td.data", 
