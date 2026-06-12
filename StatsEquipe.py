@@ -3,8 +3,12 @@ import streamlit as st
 import pandas as pd
 import utils
 
+# Configuration pour utiliser toute la largeur de l'écran
+# À placer une seule fois si ce n'est pas déjà fait dans votre page principale
+# st.set_page_config(layout="wide")
+
 def execution_app(conn):
-    """Conteneur : Semaine (index), Joueurs (colonnes), 4 métriques, avec 0 pour les vides."""
+    """Conteneur : Semaine (index), Joueurs (colonnes), 4 métriques ordonnées."""
     
     # --- ÉTAT DES SESSIONS ---
     for key, val in [("annee_choisie", None), ("club_choisi", None), ("division_choisie", None)]:
@@ -73,4 +77,10 @@ def execution_app(conn):
             st.subheader(f"📋 Synthèse hebdomadaire ({len(df_res)} match(s))")
             
             # 5. Affichage final
-            st.dataframe(df_pivot, use_container_width=True)
+            # Calcul de la hauteur pour minimiser le scroll (ex: 35px par ligne)
+            hauteur_calc = (len(df_pivot) + 2) * 35 
+            st.dataframe(
+                df_pivot, 
+                use_container_width=True, 
+                height=hauteur_calc
+            )
