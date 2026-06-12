@@ -1,5 +1,4 @@
 # utils.py
-import re
 import streamlit as st
 
 # --- FONCTIONS DE DONNÉES AVEC MISE EN CACHE ---
