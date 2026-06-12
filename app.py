@@ -111,7 +111,7 @@ try:
         if st.session_state.joueurs_choisis:
             requete = requete.in_("Joueur1", st.session_state.joueurs_choisis)
 
-        reponse = requete.limit(5000).execute()
+        reponse = requete.limit(50000).execute()
         df_resultat = pd.DataFrame(reponse.data)
 
         if df_resultat.empty:
@@ -143,9 +143,9 @@ try:
                     # 2. Calcul des sous-totaux par joueur
                     totaux_joueurs = tcd_base.groupby(level=["Equipe1", "Joueur1"]).sum()
                     
-                    totaux_joueurs["ClassementJ1"] = "TOTAL JOUEUR"
-                    totaux_joueurs["Division"] = "TOTAL JOUEUR"
-                    totaux_joueurs["Semaine"] = "TOTAL JOUEUR"
+                    totaux_joueurs["ClassementJ1"] = "Total Saison"
+                    totaux_joueurs["Division"] = ""
+                    totaux_joueurs["Semaine"] = ""
                     totaux_joueurs = totaux_joueurs.set_index(["ClassementJ1", "Division", "Semaine"], append=True)
                     
                     # 3. Fusion des données
