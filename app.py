@@ -108,7 +108,7 @@ try:
             colonnes_visibles = [col for col in colonnes_ordonnees if col in df_resultat.columns]
             
             # Affichage du tableau de données brutes
-            st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
+            # st.dataframe(df_resultat[colonnes_visibles], use_container_width=True, hide_index=True)
 
 
             # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) SANS AUCUN DEFILEMENT ---
