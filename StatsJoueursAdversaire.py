@@ -4,7 +4,7 @@ import pandas as pd
 import utils
 
 def execution_app(conn):
-    """Conteneur principal : TCD avec nouvel index et calculs de performance."""
+    """Conteneur principal : TCD analytique avec index complet, trié et aligné."""
     
     # --- ÉTAT DES SESSIONS & CALLBACKS DE FILTRES ---
     def reset_filtres(niveau):
@@ -17,7 +17,7 @@ def execution_app(conn):
             st.session_state[key] = val
 
     # --- INTERFACE UTILISATEUR ---
-    st.subheader("🔍 Filtres de sélection")
+    st.subheader("🔍 Filtres de sélection (Multi-choix tactiles)")
     
     st.write("**📅 1. Sélectionnez l'Année :**")
     st.segmented_control(
@@ -53,9 +53,9 @@ def execution_app(conn):
         df_res = pd.DataFrame(req.limit(50000).execute().data)
 
         if df_res.empty:
-            st.warning("⚠️ Aucun record trouvé.")
+            st.warning("⚠️ Aucun record trouvé pour ces critères.")
         else:
-            # Création du TCD avec le nouvel index
+            # Création du TCD avec index complet
             tcd_bilan = df_res.pivot_table(
                 index=["Equipe1", "Joueur1", "Annee", "ClassementJ1", "ClassementJ2"], 
                 values=["Match", "VictoireJ1"], 
@@ -67,19 +67,27 @@ def execution_app(conn):
             tcd_bilan["% Victoire"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
             tcd_bilan.columns = ["Matchs Joués", "Victoires", "% Victoire"]
 
-            # Tri par Joueur puis Année
+            # Tri par Joueur puis par Année
             tcd_bilan = tcd_bilan.reset_index()
             tcd_bilan = tcd_bilan.sort_values(by=["Joueur1", "Annee"])
             tcd_bilan = tcd_bilan.set_index(["Equipe1", "Joueur1", "Annee", "ClassementJ1", "ClassementJ2"])
 
-            st.subheader(f"📋 Synthèse ({len(df_res)} match(s))")
+            st.subheader(f"📋 Synthèse ({len(df_res)} match(s) analysé(s))")
             
-            # Affichage HTML
+            # Affichage HTML avec alignement forcé en haut à gauche
             html_table = (
                 tcd_bilan.style.format({"Matchs Joués": "{:,.0f}", "Victoires": "{:,.0f}", "% Victoire": "{:.1f}%"})
                 .background_gradient(cmap="RdYlGn", subset=["% Victoire"], vmin=0, vmax=100, axis=0)
                 .set_table_styles([
-                    {"selector": "th, td", "props": [("border", "1px solid #555555"), ("padding", "8px")]}
+                    {
+                        "selector": "th, td, th.row_heading, th.col_heading, td.data", 
+                        "props": [
+                            ("vertical-align", "top !important"), 
+                            ("text-align", "left !important"), 
+                            ("border", "1px solid #555555 !important"), 
+                            ("padding", "8px !important")
+                        ]
+                    }
                 ], overwrite=False)
                 .to_html(escape=False)
             )
