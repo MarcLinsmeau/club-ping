@@ -13,7 +13,7 @@ st.set_page_config(page_title="Ping-Point - Recherche", page_icon="🏓", layout
 st.title(f"🏓 Recherche Avancée des Statistiques - {mode}")
 
 try:
-    # 1. Connexion à Supabase
+    # Connexion à Supabase
     conn = st.connection("supabase", type=SupabaseConnection)
 
     # --- REQUÊTES DATA (RPC ET TABLES) ---
@@ -21,6 +21,11 @@ try:
     def charger_annees():
         res = conn.client.rpc("obtenir_annees_uniques").execute()
         return [str(row["annee"]) for row in res.data] if res.data else []
+
+    @st.cache_data(ttl=300)
+    def charger_clubs():
+        res = conn.client.rpc("obtenir_clubs_uniques").execute()
+        return [row["club"] for row in res.data] if res.data else []
 
     @st.cache_data(ttl=300)
     def charger_clubs(annee):
