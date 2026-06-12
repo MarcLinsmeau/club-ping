@@ -160,14 +160,20 @@ try:
                     # 5. Calcul des pourcentages et structuration finale
                     tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
                     tcd_bilan = tcd_bilan[["MatchNonFF", "Match", "VictoireJ1", "Taux Victoires", "PointsJ1"]]
-                    tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés"]
+                    tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés J1"]
 
-                    # --- STRATÉGIE DE MISE EN GRAS COMPLÈTE DES LIGNES ---
-                    # Cette fonction cible les valeurs numériques de la ligne "Total Saison"
+                    # --- MODIFICATION ICI : GESTION DES PRIORITÉS DE STYLE ---
                     def styliser_ligne_total(row):
-                        # On vérifie si "Total Saison" est présent dans le tuple de l'index (niveau 2 : ClassementJ1)
                         if "Total Saison" in row.name:
-                            return ["font-weight: bold !important; background-color: #edf2f7 !important;"] * len(row)
+                            styles = []
+                            for col in row.index:
+                                # Si c'est la colonne des pourcentages, on met en gras MAIS on ne force pas de couleur de fond (background)
+                                if col == "% Victoires":
+                                    styles.append("font-weight: bold !important;")
+                                # Pour les autres colonnes de données, on met en gras ET fond gris
+                                else:
+                                    styles.append("font-weight: bold !important; background-color: #edf2f7 !important;")
+                            return styles
                         return [""] * len(row)
 
                     # Affichage final stylisé
@@ -179,15 +185,15 @@ try:
                         "Matchs Gagnés": "{:,.0f}",
                         "% Victoires": "{:.1f}%",
                         "Points Gagnés J1": "{:+.0f}"
-                    }).apply(
-                        styliser_ligne_total, 
-                        axis=1
-                    ).background_gradient(
+                    }).background_gradient(
                         cmap="RdYlGn", 
                         subset=["% Victoires"],
                         vmin=0,
                         vmax=100,
-                        axis=0                   
+                        axis=0
+                    ).apply(
+                        styliser_ligne_total, 
+                        axis=1
                     ).set_table_styles([
                         {"selector": "th, td, th.row_heading, th.col_heading, td.data, .blank", "props": [
                             ("vertical-align", "top !important"),
@@ -199,7 +205,7 @@ try:
                         {"selector": "th, td", "props": [
                             ("padding", "8px !important")
                         ]},
-                        # Cette règle CSS force désormais le gras également sur les en-têtes textuels (à gauche) de la ligne concernée
+                        # On applique le gras et le gris uniquement sur les cellules d'entête textuelles à gauche
                         {"selector": "tr:has(th:contains('Total Saison')) th", "props": [
                             ("font-weight", "bold !important"),
                             ("background-color", "#edf2f7 !important")
