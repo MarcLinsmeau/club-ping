@@ -34,7 +34,12 @@ try:
     elif mode == "StatsJoueursAdversaire":
         from StatsJoueursAdversaire import execution_app
         execution_app(conn)
+
+    elif mode == "StatsEquipe":
+        from StatsEquipe import execution_app
+        execution_app(conn)
   
+    
     else:
         st.error(f"Le mode demandé '{mode}' est introuvable ou non configuré.")
 
