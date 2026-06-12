@@ -4,7 +4,7 @@ import pandas as pd
 import utils
 
 def execution_app(conn):
-    """Conteneur : Semaine en index, Joueurs en colonnes (Métriques ordonnées)."""
+    """Conteneur : Semaine (index), Joueurs et Métriques ordonnées en colonnes."""
     
     # --- ÉTAT DES SESSIONS & FILTRES ---
     def reset_filtres(niveau):
@@ -41,30 +41,30 @@ def execution_app(conn):
         if df_res.empty:
             st.warning("⚠️ Aucun record trouvé.")
         else:
-            # 1. Calcul agrégé
+            # 1. Calcul agrégé : On remplace le % par la somme des Points
+            # Assurez-vous que la colonne 'PointsJ1' existe bien dans votre table 'test'
             df_g = df_res.groupby(["Semaine", "Joueur1"]).agg(
                 Sélections=("MatchNonFF", "size"),
                 Matchs_Joués=("Match", "size"),
-                Victoires=("VictoireJ1", "sum")
+                Victoires=("VictoireJ1", "sum"),
+                Points=("PointsJ1", "sum")
             )
-            df_g["% Victoire"] = (df_g["Victoires"] / df_g["Matchs_Joués"] * 100).fillna(0)
             df_g = df_g.fillna(0)
             
-            # 2. Pivotement manuel pour garder l'ordre des colonnes
-            # On crée une liste de DataFrames par joueur, puis on les concatène
+            # 2. Pivotement manuel pour garantir l'ordre : Sélections, Matchs, Victoires, Points
             joueurs = df_g.index.get_level_values("Joueur1").unique()
             df_list = []
             
             for joueur in joueurs:
                 df_j = df_g.xs(joueur, level="Joueur1")
-                # On force l'ordre des colonnes ici
-                df_j = df_j[["Sélections", "Matchs_Joués", "Victoires", "% Victoire"]]
+                # Ordre forcé des colonnes
+                df_j = df_j[["Sélections", "Matchs_Joués", "Victoires", "Points"]]
                 df_j.columns = pd.MultiIndex.from_product([[joueur], df_j.columns])
                 df_list.append(df_j)
             
             df_pivot = pd.concat(df_list, axis=1)
             
-            # 3. Tri chronologique de la semaine
+            # 3. Tri chronologique
             df_pivot = df_pivot.sort_index(key=lambda x: x.map(utils.parse_semaine))
 
             st.subheader(f"📋 Synthèse hebdomadaire ({len(df_res)} match(s))")
