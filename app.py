@@ -112,9 +112,9 @@ try:
 
 
             # --- SECTION TABLEAU CROISÉ DYNAMIQUE (TCD) SANS AUCUN DEFILEMENT ---
-            st.markdown("---")
-            st.header("📊 Tableau Croisé Dynamique : Bilan des Joueurs")
-            st.write("Ce tableau récapitule les statistiques complètes. Il s'affiche en entier sans barre de défilement.")
+            # st.markdown("---")
+            # st.header("📊 Tableau Croisé Dynamique : Bilan des Joueurs")
+            # st.write("Ce tableau récapitule les statistiques complètes. Il s'affiche en entier sans barre de défilement.")
 
             # Ajout sécurisé de 'PointsJ1' dans la validation des colonnes de base
             colonnes_requises = ["MatchNonFF", "Match", "VictoireJ1", "PointsJ1"]
