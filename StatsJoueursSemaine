@@ -1,3 +1,8 @@
+# utils.py
+import re
+import streamlit as st
+
+# --- FONCTIONS DE DONNÉES AVEC MISE EN CACHE ---
 @st.cache_data(ttl=300)
 def StatsJoueursSemaine(_conn):
     """Récupère la liste de toutes les années uniques disponibles en base."""
