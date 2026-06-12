@@ -4,7 +4,7 @@ import pandas as pd
 import utils
 
 def execution_app(conn):
-    """Conteneur principal : Semaine (index), Joueurs (colonnes), 4 métriques ordonnées."""
+    """Conteneur : Semaine (index), Joueurs (colonnes), 4 métriques, avec 0 pour les vides."""
     
     # --- ÉTAT DES SESSIONS ---
     for key, val in [("annee_choisie", None), ("club_choisi", None), ("division_choisie", None)]:
@@ -67,8 +67,8 @@ def execution_app(conn):
                 df_j.columns = pd.MultiIndex.from_product([[joueur], df_j.columns])
                 df_list.append(df_j)
             
-            # 4. Concaténation et tri chronologique de l'index Semaine
-            df_pivot = pd.concat(df_list, axis=1).sort_index(key=lambda x: x.map(utils.parse_semaine))
+            # 4. Concaténation, remplacement des vides par 0, et tri chronologique
+            df_pivot = pd.concat(df_list, axis=1).fillna(0).sort_index(key=lambda x: x.map(utils.parse_semaine))
 
             st.subheader(f"📋 Synthèse hebdomadaire ({len(df_res)} match(s))")
             
