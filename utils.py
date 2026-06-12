@@ -34,6 +34,12 @@ def charger_joueurs_complet(_conn, annee, liste_clubs):
     res = _conn.table("test").select("Joueur1").eq("Annee", annee).in_("Equipe1", liste_clubs).execute()
     return sorted(list({row["Joueur1"] for row in (res.data or []) if row.get("Joueur1")}))
 
+@st.cache_data(ttl=300)
+def charger_equipes_complet(_conn, annee, liste_clubs):
+    """Extrait et trie la liste des équipes selon l'année et les clubs."""
+    res = _conn.table("test").select("Division").eq("Annee", annee).in_("Equipe1", liste_clubs).execute()
+    return sorted(list({row["Division"] for row in (res.data or []) if row.get("Joueur1")}))
+
 # --- FONCTION UTILITAIRE DE PARSING ---
 
 def parse_semaine(val):
