@@ -4,9 +4,9 @@ import pandas as pd
 import utils
 
 def execution_app(conn):
-    """Conteneur : Semaine, Equipe1, Equipe2 en index, Joueurs en colonnes (Entiers)."""
+    """Conteneur : Semaine, Equipe2 en index, Joueurs en colonnes (Entiers)."""
     
-    # --- ÉTAT DES SESSIONS & INTERFACE (identique) ---
+    # --- ÉTAT DES SESSIONS & INTERFACE ---
     for key, val in [("annee_choisie", None), ("club_choisi", None), ("division_choisie", None)]:
         if key not in st.session_state: st.session_state[key] = val
 
@@ -31,8 +31,8 @@ def execution_app(conn):
         if df_res.empty:
             st.warning("⚠️ Aucun record trouvé.")
         else:
-            # 1. Calcul agrégé
-            df_g = df_res.groupby(["Semaine", "Equipe1", "Equipe2", "Joueur1"]).agg(
+            # 1. Calcul agrégé (Equipe1 retiré de l'index)
+            df_g = df_res.groupby(["Semaine", "Equipe2", "Joueur1"]).agg(
                 Sélect=("MatchNonFF", "size"),
                 Joués=("Match", "size"),
                 Vict=("VictoireJ1", "sum"),
@@ -52,9 +52,9 @@ def execution_app(conn):
             df_pivot = pd.concat(df_list, axis=1).fillna(0).astype('Int64')
             df_pivot = df_pivot.sort_index(level="Semaine", key=lambda x: x.map(utils.parse_semaine))
 
-            # 4. Total
+            # 4. Total (Index ajusté avec 2 niveaux : Semaine, Equipe2)
             total_row = pd.DataFrame(df_pivot.sum()).T.astype('Int64')
-            total_row.index = pd.MultiIndex.from_tuples([("Total", "", "")], names=["Semaine", "Equipe1", "Equipe2"])
+            total_row.index = pd.MultiIndex.from_tuples([("Total", "")], names=["Semaine", "Equipe2"])
             df_pivot = pd.concat([df_pivot, total_row])
 
             # 5. Affichage avec style
