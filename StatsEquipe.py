@@ -4,19 +4,17 @@ import pandas as pd
 import utils
 
 def execution_app(conn):
-    """Conteneur : Semaine et Indicateurs en index, Joueurs en colonnes."""
+    """Conteneur : Semaine et Indicateurs en index, Joueurs en colonnes (Stable)."""
     
-    # --- ÉTAT DES SESSIONS & CALLBACKS ---
+    # --- ÉTAT DES SESSIONS ---
     def reset_filtres(niveau):
-        if niveau <= 1:
-            st.session_state.clubs_choisis = []
+        if niveau <= 1: st.session_state.clubs_choisis = []
         st.session_state.divisions_choisies = []
 
     for key, val in [("annee_choisie", None), ("clubs_choisis", []), ("divisions_choisies", [])]:
-        if key not in st.session_state:
-            st.session_state[key] = val
+        if key not in st.session_state: st.session_state[key] = val
 
-    # --- INTERFACE UTILISATEUR ---
+    # --- INTERFACE ---
     st.subheader("🔍 Filtres de sélection")
     st.write("**📅 1. Année :**")
     st.segmented_control("Année", options=utils.charger_annees(conn), key="annee_choisie", 
@@ -43,7 +41,7 @@ def execution_app(conn):
         if df_res.empty:
             st.warning("⚠️ Aucun record trouvé.")
         else:
-            # 1. Calcul agrégé par Semaine et Joueur
+            # 1. Calcul agrégé
             df_g = df_res.groupby(["Semaine", "Joueur1"]).agg(
                 Sélections=("MatchNonFF", "size"),
                 Matchs_Joués=("Match", "size"),
@@ -51,35 +49,22 @@ def execution_app(conn):
             )
             df_g["% Victoire"] = (df_g["Victoires"] / df_g["Matchs_Joués"] * 100).fillna(0)
             
-            # 2. Transposition : On empile les indicateurs, puis on pivote les joueurs en colonnes
+            # 2. Transposition
             df_pivot = df_g.stack().unstack(level="Joueur1")
-            
-            # 3. Tri chronologique par Semaine
             df_pivot = df_pivot.sort_index(key=lambda x: x.map(utils.parse_semaine))
+
+            # 3. Formatage manuel des données pour éviter les bugs de style
+            def appliquer_format(val, row_name):
+                if row_name == "% Victoire":
+                    return f"{val:.1f}%"
+                return f"{int(val)}"
+
+            df_display = df_pivot.copy()
+            for idx in df_display.index:
+                semaine, indicateur = idx
+                df_display.loc[idx] = [appliquer_format(val, indicateur) for val in df_pivot.loc[idx]]
 
             st.subheader(f"📋 Synthèse hebdomadaire ({len(df_res)} match(s))")
             
-            # 4. Affichage stylisé
-            # Création du styler
-            styler = df_pivot.style.format("{:.0f}") 
-            
-            # Application du formatage % sur la ligne spécifique de l'index
-            # On utilise une fonction de formatage conditionnel sur l'index
-            def format_conditional(row):
-                if row.name[1] == "% Victoire":
-                    return [f"{v:.1f}%" for v in row]
-                return [f"{v:.0f}" for v in row]
-            
-            styler = styler.format(format_conditional)
-
-            # Rendu HTML
-            html_table = (
-                styler.background_gradient(cmap="Blues", axis=None)
-                .set_table_styles([
-                    {"selector": "th, td, th.row_heading, th.col_heading, td.data", 
-                     "props": [("vertical-align", "top !important"), ("text-align", "left !important"), 
-                               ("border", "1px solid #555555 !important"), ("padding", "8px !important")]}
-                ], overwrite=False)
-                .to_html(escape=False)
-            )
-            st.write(html_table, unsafe_html=True)
+            # 4. Affichage simple et robuste
+            st.dataframe(df_display, use_container_width=True)
