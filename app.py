@@ -21,69 +21,78 @@ try:
         return [row["club"] for row in res.data] if res.data else []
 
     @st.cache_data(ttl=300)
-    def charger_joueurs(annee, club):
-        res = conn.client.rpc("obtenir_joueurs_par_annee_et_club", {"annee_recherche": annee, "club_recherche": club}).execute()
-        return [row["joueur"] for row in res.data] if res.data else []
+    def charger_joueurs(annee, liste_clubs):
+        # On récupère l'ensemble des joueurs appartenant à tous les clubs sélectionnés
+        joueurs_globaux = set()
+        for club in liste_clubs:
+            res = conn.client.rpc("obtenir_joueurs_par_annee_et_club", {"annee_recherche": annee, "club_recherche": club}).execute()
+            if res.data:
+                for row in res.data:
+                    joueurs_globaux.add(row["joueur"])
+        return sorted(list(joueurs_globaux))
 
 
-    # --- FONCTIONS DE CALLBACK (Réinitialisation des étapes suivantes) ---
+    # --- FONCTIONS DE CALLBACK (Nettoyage en cascade) ---
     def changement_annee():
-        st.session_state.club_choisi = None
-        st.session_state.joueur_choisi = "Tous les joueurs"
+        st.session_state.clubs_choisis = []
+        st.session_state.joueurs_choisis = []
 
     def changement_club():
-        st.session_state.joueur_choisi = "Tous les joueurs"
+        st.session_state.joueurs_choisis = []
 
 
     # --- INITIALISATION DES VARIABLES DANS LE STATE ---
     if "annee_choisie" not in st.session_state:
         st.session_state.annee_choisie = None
-    if "club_choisi" not in st.session_state:
-        st.session_state.club_choisi = None
-    if "joueur_choisi" not in st.session_state:
-        st.session_state.joueur_choisi = "Tous les joueurs"
+    if "clubs_choisis" not in st.session_state:
+        st.session_state.clubs_choisis = []
+    if "joueurs_choisis" not in st.session_state:
+        st.session_state.joueurs_choisis = []
 
 
-    # --- INTERFACE ET FILTRES SANS CLAVIER (Boutons tactiles uniquement) ---
-    st.subheader("🔍 Filtres de sélection")
+    # --- INTERFACE ET FILTRES MULTI-SÉLECTION ---
+    st.subheader("🔍 Filtres de sélection (Multi-choix tactiles)")
 
-    # 1. FILTRE ANNÉE (Sélection par bouton)
+    # 1. FILTRE ANNÉE (Sélection unique pour cibler une saison)
     liste_annees = charger_annees()
-    st.write("**📅 1. Sélectionnez l'Année :**")
+    st.write("**📅 1. Sélectionnez l'Année de recherche :**")
     st.segmented_control(
         label="Année",
         options=list(liste_annees),
         key="annee_choisie",
+        selection_mode="single",
         on_change=changement_annee,
         label_visibility="collapsed"
     )
 
     annee_valide = st.session_state.annee_choisie is not None
 
-    # 2. FILTRE CLUB (Apparaît si l'année est cochée)
+    # 2. FILTRE CLUB (Multi-sélection active)
     if annee_valide:
         st.markdown("---")
         liste_clubs = charger_clubs(st.session_state.annee_choisie)
-        st.write("**🏢 2. Sélectionnez le Club (Equipe 1) :**")
+        st.write("**🏢 2. Sélectionnez un ou plusieurs Clubs (Equipe 1) :**")
         st.segmented_control(
-            label="Club",
+            label="Clubs",
             options=list(liste_clubs),
-            key="club_choisi",
+            key="clubs_choisis",
+            selection_mode="multi",  # Multi-clubs activé
             on_change=changement_club,
             label_visibility="collapsed"
         )
 
-    club_valide = annee_valide and st.session_state.club_choisi is not None
+    clubs_valides = annee_valide and len(st.session_state.clubs_choisis) > 0
 
-    # 3. FILTRE JOUEUR (Apparaît si le club est coché)
-    if club_valide:
+    # 3. FILTRE JOUEUR (Multi-sélection active)
+    if clubs_valides:
         st.markdown("---")
-        liste_joueurs = charger_joueurs(st.session_state.annee_choisie, st.session_state.club_choisi)
-        st.write("**👤 3. Sélectionnez le Joueur (Joueur 1) :**")
+        liste_joueurs = charger_joueurs(st.session_state.annee_choisie, st.session_state.clubs_choisis)
+        st.write("**👤 3. Sélectionnez un ou plusieurs Joueurs (Joueur 1) :**")
         st.segmented_control(
-            label="Joueur",
-            options=["Tous les joueurs"] + list(liste_joueurs),
-            key="joueur_choisi",
+            label="Joueurs",
+            options=list(liste_joueurs),
+            key="joueurs_choisis",
+            selection_mode="multi",  # Multi-joueurs activé
             label_visibility="collapsed"
         )
 
@@ -92,14 +101,15 @@ try:
     st.markdown("---")
     if not annee_valide:
         st.info("💡 En attente de vos critères : Veuillez cocher une **Année** pour commencer.")
-    elif not club_valide:
-        st.info("💡 Étape suivante : Veuillez cocher un **Club** pour charger les joueurs.")
+    elif not clubs_valides:
+        st.info("💡 Étape suivante : Veuillez cocher au moins un **Club** pour charger les joueurs correspondants.")
     else:
-        # Exécution de la requête avec les variables stabilisées
-        requete = conn.table("test").select("*").eq("Annee", st.session_state.annee_choisie).eq("Equipe1", st.session_state.club_choisi)
+        # Construction de la requête avec les filtres cumulés .in_()
+        requete = conn.table("test").select("*").eq("Annee", st.session_state.annee_choisie).in_("Equipe1", st.session_state.clubs_choisis)
 
-        if st.session_state.joueur_choisi != "Tous les joueurs":
-            requete = requete.eq("Joueur1", st.session_state.joueur_choisi)
+        # Si des joueurs spécifiques sont cochés, on applique le filtre, sinon on prend tout le monde
+        if st.session_state.joueurs_choisis:
+            requete = requete.in_("Joueur1", st.session_state.joueurs_choisis)
 
         reponse = requete.limit(5000).execute()
         df_resultat = pd.DataFrame(reponse.data)
