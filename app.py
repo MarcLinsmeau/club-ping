@@ -160,7 +160,7 @@ try:
                     # 5. Calcul des pourcentages et structuration finale
                     tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
                     tcd_bilan = tcd_bilan[["MatchNonFF", "Match", "VictoireJ1", "Taux Victoires", "PointsJ1"]]
-                    tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés J1"]
+                    tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés"]
 
                     # --- STRATÉGIE DE MISE EN GRAS COMPLÈTE DES LIGNES ---
                     # Cette fonction cible les valeurs numériques de la ligne "Total Saison"
@@ -179,15 +179,15 @@ try:
                         "Matchs Gagnés": "{:,.0f}",
                         "% Victoires": "{:.1f}%",
                         "Points Gagnés J1": "{:+.0f}"
-                    }).background_gradient(
+                    }).apply(
+                        styliser_ligne_total, 
+                        axis=1
+                    ).background_gradient(
                         cmap="RdYlGn", 
                         subset=["% Victoires"],
                         vmin=0,
                         vmax=100,
-                        axis=0
-                    ).apply(
-                        styliser_ligne_total, 
-                        axis=1
+                        axis=0                   
                     ).set_table_styles([
                         {"selector": "th, td, th.row_heading, th.col_heading, td.data, .blank", "props": [
                             ("vertical-align", "top !important"),
