@@ -10,9 +10,9 @@ def execution_app(conn):
     def reset_filtres(niveau):
         if niveau <= 1:
             st.session_state.clubs_choisis = []
-        st.session_state.divisions_choisies = []
+        st.session_state.divisions_choisies = None
 
-    for key, val in [("annee_choisie", None), ("clubs_choisis", []), ("divisions_choisies", [])]:
+    for key, val in [("annee_choisie", None), ("clubs_choisis", []), ("divisions_choisies", None)]:
         if key not in st.session_state:
             st.session_state[key] = val
 
@@ -35,30 +35,31 @@ def execution_app(conn):
 
     if st.session_state.annee_choisie and st.session_state.clubs_choisis:
         st.markdown("---")
-        st.write("**🏆 3. Sélectionnez les Divisions :**")
+        st.write("**🏆 3. Sélectionnez une Division :**")
+        # Sélection unique forcée
         st.segmented_control(
             "Divisions", options=utils.charger_equipes_complet(conn, st.session_state.annee_choisie, st.session_state.clubs_choisis), 
-            key="divisions_choisies", selection_mode="multi", label_visibility="collapsed"
+            key="divisions_choisies", selection_mode="single", label_visibility="collapsed"
         )
 
     # --- REQUÊTAGE ET TCD ---
     st.markdown("---")
     if not st.session_state.annee_choisie or not st.session_state.clubs_choisis:
         st.info("💡 Veuillez sélectionner une Année et au moins un Club.")
+    elif not st.session_state.divisions_choisies:
+        st.info("💡 Veuillez sélectionner une Division pour afficher les données.")
     else:
         req = conn.table("test").select("*").eq("Annee", st.session_state.annee_choisie).in_("Equipe1", st.session_state.clubs_choisis)
-        if st.session_state.divisions_choisies:
-            req = req.in_("Division", st.session_state.divisions_choisies)
+        
+        # Filtre sur une seule division
+        req = req.eq("Division", st.session_state.divisions_choisies)
 
         df_res = pd.DataFrame(req.limit(50000).execute().data)
 
         if df_res.empty:
             st.warning("⚠️ Aucun record trouvé pour ces critères.")
         else:
-            # Création du TCD : 
-            # Index = Semaine (lignes)
-            # Columns = Joueur1 (colonnes)
-            # Values = Somme des Victoires
+            # Création du TCD : Semaine (lignes) / Joueur1 (colonnes)
             df_pivot = df_res.pivot_table(
                 index="Semaine",
                 columns="Joueur1",
@@ -67,12 +68,12 @@ def execution_app(conn):
                 fill_value=0
             )
 
-            # Tri des lignes (Semaines) de façon chronologique grâce à utils.parse_semaine
+            # Tri des semaines
             df_pivot = df_pivot.sort_index(key=lambda x: x.map(utils.parse_semaine))
 
-            st.subheader(f"📋 Comparatif hebdomadaire par joueur ({len(df_res)} match(s))")
+            st.subheader(f"📋 Comparatif hebdomadaire - {st.session_state.divisions_choisies} ({len(df_res)} match(s))")
             
-            # Affichage HTML avec alignement forcé en haut à gauche
+            # Affichage HTML avec alignement forcé
             html_table = (
                 df_pivot.style.format("{:.0f}")
                 .background_gradient(cmap="Blues", axis=None)
