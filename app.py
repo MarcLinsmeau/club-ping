@@ -18,7 +18,7 @@ import utils
 
 # --- CONFIGURATION DE L'APPLICATION ---
 mode = st.query_params.get("mode", "StatsJoueursSemaine")
-st.set_page_config(page_title="Ping-Point - Recherche", page_icon="🏓", layout="wide")
+st.set_page_config(page_title="Ping-Point", page_icon="🏓", layout="wide")
 st.title(f"🏓 Recherche Avancée des Statistiques - {mode}")
 
 try:
