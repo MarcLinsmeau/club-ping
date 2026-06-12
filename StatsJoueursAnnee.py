@@ -4,7 +4,7 @@ import pandas as pd
 import utils
 
 def execution_app(conn):
-    """Conteneur principal de l'application de statistiques annuelles des joueurs (Trié par Année)."""
+    """Conteneur principal de l'application de statistiques annuelles (Trié par Joueur puis par Année)."""
     
     # --- ÉTAT DES SESSIONS & CALLBACKS DE FILTRES ---
     def reset_filtres():
@@ -55,9 +55,10 @@ def execution_app(conn):
                 st.error("Une ou plusieurs colonnes de calcul indispensables sont introuvables en base de données.")
                 st.stop()
                 
-            # --- CONFIGURATION DU TCD ---
+            # --- CONFIGURATION DU TCD : NOUVEL ORDRE DES INDEX ---
+            # On place 'Joueur1' puis 'Annee' en tête pour l'affichage et le regroupement visuel
             tcd_bilan = df_res.pivot_table(
-                index=["Equipe1", "Joueur1", "Annee", "ClassementJ1"], 
+                index=["Joueur1", "Annee", "Equipe1", "ClassementJ1"], 
                 values=colonnes_requises, 
                 aggfunc={"MatchNonFF": "size", "Match": "size", "VictoireJ1": "sum", "PointsJ1": "sum"}, 
                 fill_value=0
@@ -66,12 +67,11 @@ def execution_app(conn):
             if tcd_bilan.empty:
                 st.info("Données insuffisantes pour générer ce tableau croisé.")
             else:
-                # Forçage du format String sur le niveau de l'index 'Annee'
-                tcd_bilan.index = tcd_bilan.index.set_levels(tcd_bilan.index.levels[2].astype(str), level=2)
+                # Forçage du format String sur le niveau de l'index 'Annee' (situé désormais à l'index 1)
+                tcd_bilan.index = tcd_bilan.index.set_levels(tcd_bilan.index.levels[1].astype(str), level=1)
                 
-                # --- MODIFICATION DU TRI : Priorité à l'Année ---
-                # On trie d'abord par 'Annee', puis par 'Equipe1', puis par 'Joueur1'
-                tcd_bilan = tcd_bilan.sort_index(level=["Annee", "Equipe1", "Joueur1"])
+                # --- MODIFICATION DU TRI : Priorité Joueur puis Année ---
+                tcd_bilan = tcd_bilan.sort_index(level=["Joueur1", "Annee"])
                 
                 # Calcul des performances
                 tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
