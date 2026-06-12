@@ -1,1 +1,5 @@
-#
+@st.cache_data(ttl=300)
+def StatsJoueursSemaine(_conn):
+    """Récupère la liste de toutes les années uniques disponibles en base."""
+    res = _conn.client.rpc("obtenir_annees_uniques").execute()
+    return [str(row["annee"]) for row in (res.data or [])]#
