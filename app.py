@@ -37,8 +37,7 @@ try:
 
     elif mode == "StatsEquipe":
         from StatsEquipe import execution_app
-        execution_app(conn)
-  
+        execution_app(conn)  
     
     else:
         st.error(f"Le mode demandé '{mode}' est introuvable ou non configuré.")
