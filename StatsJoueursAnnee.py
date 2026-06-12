@@ -1,11 +1,10 @@
 # StatsJoueursAnnee.py
 import streamlit as st
 import pandas as pd
-import altair as alt
 import utils  # Importation essentielle pour la gestion des filtres
 
 def execution_app(conn):
-    """Conteneur principal de l'application de statistiques hebdomadaires des joueurs."""
+    """Conteneur principal de l'application de statistiques annuelles des joueurs (TCD uniquement)."""
     
     # --- ÉTAT DES SESSIONS & CALLBACKS DE FILTRES ---
     def reset_filtres(niveau):
@@ -80,50 +79,28 @@ def execution_app(conn):
             if tcd_base.empty:
                 st.info("Données insuffisantes pour générer ce tableau croisé.")
             else:
+                # Passage de l'index de la semaine en format texte
                 tcd_base.index = tcd_base.index.set_levels(tcd_base.index.levels[4].astype(str), level=4)
-                
-                # --- 2. ANALYSE GRAPHIQUE (UNIQUEMENT MODE MONO-JOUEUR) ---
-                if len(st.session_state.joueurs_choisis) == 1:
-                    st.subheader(f"📊 Analyse Graphique — {st.session_state.joueurs_choisis[0]}")
-                    
-                    df_graph = tcd_base.reset_index()
-                    df_graph["semaine_num"] = df_graph["Semaine"].map(utils.parse_semaine)
-                    df_graph = df_graph.sort_values(by="semaine_num")
-                    df_graph["Points Cumulés"] = df_graph["PointsJ1"].cumsum()
-                    
-                    # Graphe 1 : Histogramme Hebdomadaire
-                    st.write("**Points gagnés / perdus par semaine**")
-                    chart_base = alt.Chart(df_graph).encode(x=alt.X("Semaine:N", sort=alt.SortField(field="semaine_num", order="ascending")))
-                    barres = chart_base.mark_bar(color="#22c55e").encode(y=alt.Y("PointsJ1:Q"))
-                    
-                    labels_pos = chart_base.mark_text(dy=-10, align="center", fontWeight="bold").transform_filter("datum.PointsJ1 >= 0").encode(y="PointsJ1:Q", text=alt.Text("PointsJ1:Q", format="+d"))
-                    labels_neg = chart_base.mark_text(dy=10, align="center", fontWeight="bold").transform_filter("datum.PointsJ1 < 0").encode(y="PointsJ1:Q", text=alt.Text("PointsJ1:Q", format="+d"))
-                    st.altair_chart(barres + labels_pos + labels_neg, use_container_width=True)
-                    
-                    # Graphe 2 : Tendance Cumulative
-                    st.write("**Évolution du cumul sur la saison**")
-                    chart_cumul = alt.Chart(df_graph).encode(x=alt.X("Semaine:N", sort=alt.SortField(field="semaine_num", order="ascending")), y="Points Cumulés:Q")
-                    courbe = chart_cumul.mark_line(color="#3b82f6", strokeWidth=3)
-                    points = chart_cumul.mark_circle(color="#3b82f6", size=60)
-                    labels_cumul = chart_cumul.mark_text(dy=-12, align="center", fontWeight="bold").encode(text=alt.Text("Points Cumulés:Q", format="d"))
-                    st.altair_chart(courbe + points + labels_cumul, use_container_width=True)
-                    st.markdown("---")
 
-                # --- 3. CALCUL DU RESUMÉ & INJECTION DU TABLEAU HTML/CSS ---
+                # --- 2. CALCUL DU RESUMÉ & INJECTION DU TABLEAU HTML/CSS ---
+                # Génération des sous-totaux par bloc de joueurs
                 totaux = tcd_base.groupby(level=["Equipe1", "Joueur1"]).sum()
                 totaux["ClassementJ1"], totaux["Division"], totaux["Semaine"] = "Total Saison", "", ""
                 totaux = totaux.set_index(["ClassementJ1", "Division", "Semaine"], append=True)
                 
+                # Fusion finale et tri chronologique basé sur utils.parse_semaine
                 tcd_bilan = pd.concat([tcd_base, totaux]).sort_index(level=["Equipe1", "Joueur1", "Semaine"], key=lambda x: x.map(utils.parse_semaine) if x.name == "Semaine" else x)
                 tcd_bilan["Taux Victoires"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
                 tcd_bilan = tcd_bilan[["MatchNonFF", "Match", "VictoireJ1", "Taux Victoires", "PointsJ1"]]
                 tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés J1"]
 
+                # Règle CSS personnalisée pour mettre en valeur les lignes de totaux
                 def injection_style_ligne(row):
                     return ["font-weight: bold !important;" + (" background-color: #edf2f7 !important;" if c != "% Victoires" else "") if "Total Saison" in row.name else "" for c in row.index]
 
                 st.subheader(f"📋 Tableau de synthèse des performances ({len(df_res)} match(s) analysé(s))")
                 
+                # Génération HTML de la table avec son dégradé conditionnel
                 html_table = (
                     tcd_bilan.style.format({"Sélections": "{:,.0f}", "Matchs Joués": "{:,.0f}", "Matchs Gagnés": "{:,.0f}", "% Victoires": "{:.1f}%", "Points Gagnés J1": "{:+.0f}"})
                     .background_gradient(cmap="RdYlGn", subset=["% Victoires"], vmin=0, vmax=100, axis=0)
@@ -134,4 +111,6 @@ def execution_app(conn):
                     ], overwrite=False)
                     .to_html(escape=False)
                 )
+                
+                # Rendu du tableau final
                 st.write(html_table, unsafe_allow_html=True)
