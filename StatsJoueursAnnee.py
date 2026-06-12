@@ -90,4 +90,19 @@ def execution_app(conn):
                 tcd_bilan = tcd_bilan[["MatchNonFF", "Match", "VictoireJ1", "Taux Victoires", "PointsJ1"]]
                 
                 # Renommage des colonnes selon vos exigences
-                tcd_bilan.columns =
+                tcd_bilan.columns = ["Sélections", "Matchs Joués", "Matchs Gagnés", "% Victoires", "Points Gagnés J1"]
+
+                st.subheader(f"📋 Tableau de synthèse des performances ({len(df_res)} match(s) analysé(s))")
+                
+                # Génération HTML propre (la fonction d'injection de ligne "Total Saison" a été retirée)
+                html_table = (
+                    tcd_bilan.style.format({"Sélections": "{:,.0f}", "Matchs Joués": "{:,.0f}", "Matchs Gagnés": "{:,.0f}", "% Victoires": "{:.1f}%", "Points Gagnés J1": "{:+.0f}"})
+                    .background_gradient(cmap="RdYlGn", subset=["% Victoires"], vmin=0, vmax=100, axis=0)
+                    .set_table_styles([
+                        {"selector": "th, td, th.row_heading, th.col_heading, td.data, .blank", "props": [("vertical-align", "top !important"), ("text-align", "left !important"), ("border", "1px solid #555555 !important"), ("padding", "8px !important")]}
+                    ], overwrite=False)
+                    .to_html(escape=False)
+                )
+                
+                # Rendu du tableau épuré
+                st.write(html_table, unsafe_allow_html=True)
