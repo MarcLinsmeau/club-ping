@@ -182,4 +182,4 @@ try:
                 
 except Exception as e:
     st.error("Une erreur technique est survenue lors de l'exécution de l'application.")
-    st.exception(e)    
+    st.exception(e)
