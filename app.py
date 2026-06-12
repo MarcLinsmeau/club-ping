@@ -102,7 +102,7 @@ try:
                         digits = "".join([c for c in str(val) if c.isdigit()])
                         return int(digits) if digits else 0
 
-                    # --- GRAPHQUES COMPLETS AVEC VALEURS PERMANENTES (ALTAIR V5 COMPATIBLE) ---
+                    # --- GRAPHQUES COMPLETS AVEC VALEURS PERMANENTES (ALTAIR V5 STRICT COMPATIBLE) ---
                     if len(st.session_state.joueurs_choisis) == 1:
                         st.subheader(f"📊 Analyse Graphique — {st.session_state.joueurs_choisis[0]}")
                         
@@ -120,8 +120,9 @@ try:
                             y=alt.Y("PointsJ1:Q")
                         )
                         
+                        # CORRECTION : Remplacement de la chaîne par un objet alt.condition valide pour le schéma d'Altair 5
                         labels_barres = alt.Chart(df_graph).mark_text(
-                            dy="datum.PointsJ1 >= 0 ? -10 : 10", # Correction de la syntaxe de décalage pour Altair 5+
+                            dy=alt.condition(alt.datum.PointsJ1 >= 0, alt.value(-10), alt.value(10)),
                             align="center",
                             fontWeight="bold"
                         ).encode(
