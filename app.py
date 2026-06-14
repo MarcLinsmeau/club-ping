@@ -2,7 +2,6 @@
 import streamlit as st
 from ScrapPage import lister_urls_matchs_division, scraper_match_table_tennis
 
-
 # Configuration globale de la page Streamlit
 st.set_page_config(
     page_title="Scraper FROTTBF", page_icon="🏓", layout="centered"
