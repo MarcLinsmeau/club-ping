@@ -43,7 +43,7 @@ def scraper_match_table_tennis(url):
             semaine = int(match_semaine.group(1))
 
     # --- 3. Extraction de l'Année ---
-    annee = 2025
+    annee = None
     input_date = soup.find("input", {"id": "matchdate"})
     if input_date and input_date.get("value"):
         match_annee = re.search(r"(\d{4})-\d{2}-\d{2}", input_date["value"])
