@@ -31,7 +31,7 @@ def scraper_match_table_tennis(url):
         }
 
     soup = BeautifulSoup(response.content, "html.parser")
-    st.write(response.content)
+    st.write(soup)
 
     # --- 1. Extraction de la Division ---
     h1_text = soup.find("h1").get_text(strip=True) if soup.find("h1") else ""
