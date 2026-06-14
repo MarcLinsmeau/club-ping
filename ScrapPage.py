@@ -22,7 +22,7 @@ def scraper_match_table_tennis(url):
             return {
                 "erreur": f"Le site FROTTBF a répondu avec un code d'erreur : {response.status_code}",
                 "matchs": []
-            }
+            }        
     except Exception as e:
         return {
             "erreur": f"Impossible de se connecter au serveur : {str(e)}",
@@ -30,6 +30,7 @@ def scraper_match_table_tennis(url):
         }
 
     soup = BeautifulSoup(response.content, "html.parser")
+    st.response.content
 
     # --- 1. Extraction de la Division ---
     h1_text = soup.find("h1").get_text(strip=True) if soup.find("h1") else ""
