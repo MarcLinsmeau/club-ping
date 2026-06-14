@@ -18,6 +18,24 @@ st.set_page_config(page_title="Ping-Point - Recherche", page_icon="🏓", layout
 mode = st.query_params.get("mode", "StatsJoueursSemaine")
 st.title(f"🏓 Recherche Avancée des Statistiques - {mode}")
 
+url_test = "https://www.frottbf.org/voirfeuille.php?semaine=2&match=9908"
+
+# Appel de la fonction
+donnees_rencontre = scraper_match_table_tennis(url_test)
+
+# Exemple d'utilisation du résultat (ici un affichage propre)
+if "erreur" not in donnees_rencontre:
+    print(f"--- {donnees_rencontre['equipe_1']} VS {donnees_rencontre['equipe_2']} ---")
+    print(f"Saison : {donnees_rencontre['annee']} | Division : {donnees_rencontre['division']} | Semaine : {donnees_rencontre['semaine']}\n")
+    
+    # Affichage du premier match pour vérifier
+    premier_match = donnees_rencontre["matchs"][0]
+    print(f"Match n°{premier_match['numero_match']} :")
+    print(f"  Joueur 1 : {premier_match['joueur_1']['nom']} ({premier_match['joueur_1']['classement']}) -> Sets : {premier_match['sets_joueur_1']}")
+    print(f"  Joueur 2 : {premier_match['joueur_2']['nom']} ({premier_match['joueur_2']['classement']}) -> Sets : {premier_match['sets_joueur_2']}")
+else:
+    print(donnees_rencontre["erreur"])
+
 try:
     # Initialisation unique de la connexion pour tout l'écosystème d'applications
     conn = st.connection("supabase", type=SupabaseConnection)
