@@ -19,7 +19,7 @@ mode = st.query_params.get("mode", "StatsJoueursSemaine")
 st.title(f"🏓 Recherche Avancée des Statistiques - {mode}")
 
 # app.py
-from scraper import scraper_match_table_tennis
+from ScrapPage import scraper_match_table_tennis
 import streamlit as st
 
 url_cible = "https://www.frottbf.org/voirfeuille.php?semaine=2&match=9908"
