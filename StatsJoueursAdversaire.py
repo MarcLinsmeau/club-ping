@@ -1,92 +1,94 @@
-# StatsEquipe.py
+# StatsJoueursAdversaire.py
 import streamlit as st
 import pandas as pd
 import utils
 
 def execution_app(conn):
-    """Conteneur : Synthèse hebdomadaire avec filtres et affichage conditionnel propre."""
+    """Conteneur principal : TCD analytique avec index complet, trié et aligné."""
     
-    # --- ÉTAT DES SESSIONS ---
-    for key, val in [("annee_choisie", None), ("club_choisi", None), ("division_choisie", None)]:
-        if key not in st.session_state: st.session_state[key] = val
+    # --- ÉTAT DES SESSIONS & CALLBACKS DE FILTRES ---
+    def reset_filtres(niveau):
+        if niveau <= 1:
+            st.session_state.clubs_choisis = []
+        st.session_state.joueurs_choisis = []
 
-    def reset_suivant(niveau):
-        if niveau <= 1: st.session_state.club_choisi = None
-        if niveau <= 2: st.session_state.division_choisie = None
+    for key, val in [("annee_choisie", None), ("clubs_choisis", []), ("joueurs_choisis", [])]:
+        if key not in st.session_state:
+            st.session_state[key] = val
 
-    # --- INTERFACE ---
-    st.subheader("🔍 Filtres de sélection")
+    # --- INTERFACE UTILISATEUR ---
+    st.subheader("🔍 Filtres de sélection (Multi-choix tactiles)")
     
-    # 1. Année
-    st.write("**📅 1. Année :**")
-    st.segmented_control("Année", options=utils.charger_annees(conn), key="annee_choisie", 
-                         selection_mode="single", on_change=reset_suivant, args=(1,), label_visibility="collapsed")
+    st.write("**📅 1. Sélectionnez l'Année :**")
+    st.segmented_control(
+        "Année", options=utils.charger_annees(conn), key="annee_choisie", 
+        selection_mode="single", on_change=reset_filtres, args=(1,), label_visibility="collapsed"
+    )
 
-    # 2. Club (S'affiche uniquement si une année est sélectionnée)
     if st.session_state.annee_choisie:
         st.markdown("---")
-        st.write("**🏢 2. Club :**")
-        st.segmented_control("Club", options=utils.charger_clubs_par_annee(conn, st.session_state.annee_choisie), 
-                             key="club_choisi", selection_mode="single", on_change=reset_suivant, args=(2,), label_visibility="collapsed")
+        st.write("**🏢 2. Sélectionnez les Clubs :**")
+        st.segmented_control(
+            "Clubs", options=utils.charger_clubs_par_annee(conn, st.session_state.annee_choisie), 
+            key="clubs_choisis", selection_mode="multi", on_change=reset_filtres, args=(2,), label_visibility="collapsed"
+        )
 
-    # 3. Division (S'affiche uniquement si un club est sélectionné)
-    if st.session_state.annee_choisie and st.session_state.club_choisi:
+    if st.session_state.annee_choisie and st.session_state.clubs_choisis:
         st.markdown("---")
-        st.write("**🏆 3. Division :**")
-        st.segmented_control("Division", options=utils.charger_equipes_complet(conn, st.session_state.annee_choisie, [st.session_state.club_choisi]), 
-                             key="division_choisie", selection_mode="single", label_visibility="collapsed")
+        st.write("**👤 3. Sélectionnez les Joueurs :**")
+        st.segmented_control(
+            "Joueurs", options=utils.charger_joueurs_complet(conn, st.session_state.annee_choisie, st.session_state.clubs_choisis), 
+            key="joueurs_choisis", selection_mode="multi", label_visibility="collapsed"
+        )
 
     # --- REQUÊTAGE ET TCD ---
     st.markdown("---")
-    if not (st.session_state.annee_choisie and st.session_state.club_choisi and st.session_state.division_choisie):
-        st.info("💡 Veuillez sélectionner une Année, un Club et une Division.")
+    if not st.session_state.annee_choisie or not st.session_state.clubs_choisis:
+        st.info("💡 Veuillez sélectionner une Année et au moins un Club.")
     else:
-        req = conn.table("test").select("*").eq("Annee", st.session_state.annee_choisie)\
-                                       .eq("Equipe1", st.session_state.club_choisi)\
-                                       .eq("Division", st.session_state.division_choisie)
-        
+        req = conn.table("test").select("*").eq("Annee", st.session_state.annee_choisie).in_("Equipe1", st.session_state.clubs_choisis)
+        if st.session_state.joueurs_choisis:
+            req = req.in_("Joueur1", st.session_state.joueurs_choisis)
+
         df_res = pd.DataFrame(req.limit(50000).execute().data)
 
         if df_res.empty:
-            st.warning("⚠️ Aucun record trouvé.")
+            st.warning("⚠️ Aucun record trouvé pour ces critères.")
         else:
-            # 1. Calcul agrégé
-            df_g = df_res.groupby(["Semaine", "Equipe2", "Joueur1"]).agg(
-                Sélect=("MatchNonFF", "size"),
-                Joués=("Match", "size"),
-                Vict=("VictoireJ1", "sum"),
-                Points=("PointsJ1", "sum")
+            # Création du TCD avec index complet
+            tcd_bilan = df_res.pivot_table(
+                index=["Equipe1", "Joueur1", "Annee", "ClassementJ1", "ClassementJ2"], 
+                values=["Match", "VictoireJ1"], 
+                aggfunc={"Match": "size", "VictoireJ1": "sum"}, 
+                fill_value=0
             )
-            
-            # 2. Construction du tableau
-            joueurs = sorted(df_g.index.get_level_values("Joueur1").unique())
-            df_list = []
-            for joueur in joueurs:
-                df_j = df_g.xs(joueur, level="Joueur1")[["Sélect", "Joués", "Vict", "Points"]]
-                df_j.columns = pd.MultiIndex.from_product([[joueur], df_j.columns])
-                df_list.append(df_j)
-            
-            df_pivot = pd.concat(df_list, axis=1).fillna(0)
-            df_pivot = df_pivot.sort_index(level="Semaine", key=lambda x: x.map(utils.parse_semaine))
 
-            # 3. Conversion entier + suppression des zéros
-            df_pivot = df_pivot.astype(int).replace(0, "")
-            
-            # 4. Total
-            total_row = pd.DataFrame(df_pivot.replace("", 0).sum()).T.astype(int)
-            total_row.index = pd.MultiIndex.from_tuples([("Total", "")], names=["Semaine", "Equipe2"])
-            df_pivot = pd.concat([df_pivot, total_row])
+            # Calcul des indicateurs
+            tcd_bilan["% Victoire"] = (tcd_bilan["VictoireJ1"].div(tcd_bilan["Match"]).fillna(0)) * 100
+            tcd_bilan.columns = ["Matchs Joués", "Victoires", "% Victoire"]
 
-            # 5. Affichage final
-            st.subheader(f"📋 Synthèse hebdomadaire ({len(df_res)} match(s))")
+            # Tri par Joueur puis par Année
+            tcd_bilan = tcd_bilan.reset_index()
+            tcd_bilan = tcd_bilan.sort_values(by=["Joueur1", "Annee"])
+            tcd_bilan = tcd_bilan.set_index(["Equipe1", "Joueur1", "Annee", "ClassementJ1", "ClassementJ2"])
+
+            st.subheader(f"📋 Synthèse ({len(df_res)} match(s) analysé(s))")
             
-            st_style = df_pivot.style.set_properties(**{'border': '1px solid #d3d3d3', 'text-align': 'center'}) \
-                                     .set_table_styles([{'selector': 'th', 'props': [('border', '1px solid #d3d3d3')]}])
-            
-            hauteur_calc = (len(df_pivot) + 1) * 38
-            
-            st.dataframe(
-                st_style, 
-                use_container_width=True, 
-                height=hauteur_calc
+            # Affichage HTML avec alignement forcé en haut à gauche
+            html_table = (
+                tcd_bilan.style.format({"Matchs Joués": "{:,.0f}", "Victoires": "{:,.0f}", "% Victoire": "{:.1f}%"})
+                .background_gradient(cmap="RdYlGn", subset=["% Victoire"], vmin=0, vmax=100, axis=0)
+                .set_table_styles([
+                    {
+                        "selector": "th, td, th.row_heading, th.col_heading, td.data", 
+                        "props": [
+                            ("vertical-align", "top !important"), 
+                            ("text-align", "left !important"), 
+                            ("border", "1px solid #555555 !important"), 
+                            ("padding", "8px !important")
+                        ]
+                    }
+                ], overwrite=False)
+                .to_html(escape=False)
             )
+            st.write(html_table, unsafe_allow_html=True)
