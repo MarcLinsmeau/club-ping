@@ -1,14 +1,35 @@
 # scraper.py
 import re
+import requests
 from bs4 import BeautifulSoup
 
 
-def scraper_match_table_tennis_html(html_content):
-    """Analyse le contenu HTML brut d'une feuille de match FROTTBF et en extrait
+def scraper_match_table_tennis(url):
+    """Télécharge une page de match FROTTBF via son URL et extrait
 
-    toutes les informations requises de manière reproductible.
+    toutes les données de manière reproductible.
     """
-    soup = BeautifulSoup(html_content, "html.parser")
+    # Simulateur de navigateur pour éviter le blocage par le serveur de la FROTTBF
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "fr,fr-FR;q=0.9,en;q=0.8",
+    }
+
+    try:
+        response = requests.get(url, headers=headers, timeout=15)
+        if response.status_code != 200:
+            return {
+                "erreur": f"Le site FROTTBF a répondu avec un code d'erreur : {response.status_code}",
+                "matchs": [],
+            }
+    except Exception as e:
+        return {
+            "erreur": f"Impossible de se connecter au serveur FROTTBF : {str(e)}",
+            "matchs": [],
+        }
+
+    soup = BeautifulSoup(response.content, "html.parser")
 
     # --- 1. Extraction de la Division ---
     h1_text = soup.find("h1").get_text(strip=True) if soup.find("h1") else ""
@@ -41,24 +62,19 @@ def scraper_match_table_tennis_html(html_content):
             nom_brut = texte.split(":")[-1].strip()
             equipe2 = re.sub(r"^\d+\s*-\s*", "", nom_brut)
 
-    # --- 5. Cartographie des joueurs et de leurs classements ---
-    # On crée un dictionnaire pour lier les noms des joueurs à leurs classements
-    # car le grand tableau du bas contient uniquement les noms de famille et prénoms.
+    # --- 5. Cartographie des classements depuis les compositions ---
     dictionnaire_classements = {}
-
-    # Parcourir tous les inputs de type texte contenant les fiches des joueurs
     inputs_joueurs = soup.find_all("input", {"id": re.compile(r"joueur\d+")})
     for inp in inputs_joueurs:
-        valeur_joueur = inp.get("value", "")  # Ex: "24986 - GRANDJEAN Virginie (E1)"
+        valeur_joueur = inp.get("value", "")
         if valeur_joueur:
-            # Extraction du Nom Prénom et du Classement
             match_infos = re.search(r"-\s*([^(]+)\s*\(([^)]+)\)", valeur_joueur)
             if match_infos:
-                nom_complet = match_infos.group(1).strip()  # GRANDJEAN Virginie
-                classement = match_infos.group(2).strip()  # E1
+                nom_complet = match_infos.group(1).strip()
+                classement = match_infos.group(2).strip()
                 dictionnaire_classements[nom_complet] = classement
 
-    # --- 6. Extraction des Matchs depuis le Tableau ---
+    # --- 6. Extraction des 16 Matchs ---
     matchs_individuels = []
     table = soup.find("table")
 
@@ -70,42 +86,56 @@ def scraper_match_table_tennis_html(html_content):
             cols = row.find_all("td")
             if len(cols) >= 8:
                 try:
-                    # Numéro d'ordre du match
                     ordre = int(cols[0].get_text(strip=True))
 
-                    # Extraction des noms de joueurs (balises <span>)
-                    j1_nom = cols[1].find("span").get_text(strip=True)
-                    j2_nom = cols[5].find("span").get_text(strip=True)
+                    # Extraction des noms (balises <span> dans votre HTML)
+                    span_j1 = cols[1].find("span")
+                    span_j2 = cols[5].find("span")
 
-                    # Récupération des classements associés via notre dictionnaire créé à l'étape 5
-                    j1_classement = dictionnaire_classements.get(j1_nom, "Non spécifié")
-                    j2_classement = dictionnaire_classements.get(j2_nom, "Non spécifié")
+                    j1_nom = (
+                        span_j1.get_text(strip=True)
+                        if span_j1
+                        else cols[1].get_text(strip=True)
+                    )
+                    j2_nom = (
+                        span_j2.get_text(strip=True)
+                        if span_j2
+                        else cols[5].get_text(strip=True)
+                    )
 
-                    # Extraction des sets gagnés dans les attributs 'value' des inputs
+                    # Correspondance des classements
+                    j1_classement = dictionnaire_classements.get(
+                        j1_nom, "Non spécifié"
+                    )
+                    j2_classement = dictionnaire_classements.get(
+                        j2_nom, "Non spécifié"
+                    )
+
+                    # Extraction des inputs de résultats (setresult)
                     input_set_j1 = cols[6].find("input")
                     input_set_j2 = cols[7].find("input")
 
-                    sets_j1 = input_set_j1.get("value", "0") if input_set_j1 else "0"
-                    sets_j2 = input_set_j2.get("value", "0") if input_set_j2 else "0"
+                    sets_j1 = (
+                        input_set_j1.get("value", "0") if input_set_j1 else "0"
+                    )
+                    sets_j2 = (
+                        input_set_j2.get("value", "0") if input_set_j2 else "0"
+                    )
 
-                    # Conversion sécurisée en entier (gestion du cas "WO")
+                    # Conversion des scores de sets
                     sets_j1 = int(sets_j1) if sets_j1.isdigit() else sets_j1
                     sets_j2 = int(sets_j2) if sets_j2.isdigit() else sets_j2
 
-                    matchs_individuels.append({
-                        "numero_match": ordre,
-                        "joueur_1": {
-                            "nom": j1_nom,
-                            "classement": j1_classement
-                        },
-                        "joueur_2": {
-                            "nom": j2_nom,
-                            "classement": j2_classement
-                        },
-                        "sets_joueur_1": sets_j1,
-                        "sets_joueur_2": sets_j2
-                    })
-                except (ValueError, IndexError, AttributeError):
+                    matchs_individuels.append(
+                        {
+                            "numero_match": ordre,
+                            "joueur_1": {"nom": j1_nom, "classement": j1_classement},
+                            "joueur_2": {"nom": j2_nom, "classement": j2_classement},
+                            "sets_joueur_1": sets_j1,
+                            "sets_joueur_2": sets_j2,
+                        }
+                    )
+                except Exception:
                     continue
 
     return {
@@ -114,5 +144,5 @@ def scraper_match_table_tennis_html(html_content):
         "semaine": semaine,
         "equipe_1": equipe1,
         "equipe_2": equipe2,
-        "matchs": matchs_individuels
+        "matchs": matchs_individuels,
     }
