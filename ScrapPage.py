@@ -9,7 +9,6 @@ def scraper_match_table_tennis(url):
 
     toutes les données de manière reproductible.
     """
-    # Simulateur de navigateur pour éviter le blocage par le serveur de la FROTTBF
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
@@ -88,7 +87,6 @@ def scraper_match_table_tennis(url):
                 try:
                     ordre = int(cols[0].get_text(strip=True))
 
-                    # Extraction des noms (balises <span> dans votre HTML)
                     span_j1 = cols[1].find("span")
                     span_j2 = cols[5].find("span")
 
@@ -103,7 +101,6 @@ def scraper_match_table_tennis(url):
                         else cols[5].get_text(strip=True)
                     )
 
-                    # Correspondance des classements
                     j1_classement = dictionnaire_classements.get(
                         j1_nom, "Non spécifié"
                     )
@@ -111,7 +108,6 @@ def scraper_match_table_tennis(url):
                         j2_nom, "Non spécifié"
                     )
 
-                    # Extraction des inputs de résultats (setresult)
                     input_set_j1 = cols[6].find("input")
                     input_set_j2 = cols[7].find("input")
 
@@ -122,7 +118,6 @@ def scraper_match_table_tennis(url):
                         input_set_j2.get("value", "0") if input_set_j2 else "0"
                     )
 
-                    # Conversion des scores de sets
                     sets_j1 = int(sets_j1) if sets_j1.isdigit() else sets_j1
                     sets_j2 = int(sets_j2) if sets_j2.isdigit() else sets_j2
 
@@ -146,3 +141,41 @@ def scraper_match_table_tennis(url):
         "equipe_2": equipe2,
         "matchs": matchs_individuels,
     }
+
+
+def lister_urls_matchs_division(url_division):
+    """Scanne la page calendrier d'une division FROTTBF (ex: resultat.php?division=140)
+
+    et extrait tous les liens vers les feuilles de match individuelles.
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    }
+
+    urls_matchs = []
+
+    try:
+        response = requests.get(url_division, headers=headers, timeout=15)
+        if response.status_code != 200:
+            return []
+    except Exception:
+        return []
+
+    soup = BeautifulSoup(response.content, "html.parser")
+
+    for link in soup.find_all("a", href=True):
+        href = link["href"]
+        if "voirfeuille.php" in href:
+            if href.startswith("voirfeuille.php") or href.startswith(
+                "/voirfeuille.php"
+            ):
+                url_complete = (
+                    "https://www.frottbf.org/" + href.lstrip("/")
+                )
+            else:
+                url_complete = href
+
+            if url_complete not in urls_matchs:
+                urls_matchs.append(url_complete)
+
+    return urls_matchs
