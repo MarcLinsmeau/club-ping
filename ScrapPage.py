@@ -43,7 +43,7 @@ def scraper_match_table_tennis(url):
             semaine = int(match_semaine.group(1))
 
     # --- 3. Extraction de l'Année ---
-    annee = 2025  # Valeur par défaut
+    annee = 2025
     input_date = soup.find("input", {"id": "matchdate"})
     if input_date and input_date.get("value"):
         match_annee = re.search(r"(\d{4})-\d{2}-\d{2}", input_date["value"])
@@ -144,14 +144,13 @@ def scraper_match_table_tennis(url):
 
 
 def lister_urls_matchs_division(url_division):
-    """Scanne la page calendrier d'une division FROTTBF (ex: resultat.php?division=140)
+    """Scanne la page calendrier d'une division FROTTBF et extrait tous les
 
-    et extrait tous les liens vers les feuilles de match individuelles.
+    liens de feuilles de match.
     """
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     }
-
     urls_matchs = []
 
     try:
