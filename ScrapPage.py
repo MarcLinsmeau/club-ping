@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 def scraper_match_table_tennis(url):
     """Télécharge une page de match FROTTBF via son URL et extrait
 
-    toutes les données de manière reproductible (y compris le score global).
+    toutes les données de manière reproductible (y compris le score global officiel).
     """
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -43,7 +43,7 @@ def scraper_match_table_tennis(url):
             semaine = int(match_semaine.group(1))
 
     # --- 3. Extraction de l'Année ---
-    annee = None
+    annee = 2025
     input_date = soup.find("input", {"id": "matchdate"})
     if input_date and input_date.get("value"):
         match_annee = re.search(r"(\d{4})-\d{2}-\d{2}", input_date["value"])
@@ -73,11 +73,8 @@ def scraper_match_table_tennis(url):
                 classement = match_infos.group(2).strip()
                 dictionnaire_classements[nom_complet] = classement
 
-    # --- 6. Extraction des Matchs et du Score Global ---
+    # --- 6. Extraction des 16 Matchs Individuels ---
     matchs_individuels = []
-    score_global_equipe_1 = 0
-    score_global_equipe_2 = 0
-    
     table = soup.find("table")
 
     if table:
@@ -87,7 +84,6 @@ def scraper_match_table_tennis(url):
         for row in rows:
             cols = row.find_all("td")
             if len(cols) >= 8:
-                # Véritable ligne de match individuel (commence par un numéro de 1 à 16)
                 texte_ordre = cols[0].get_text(strip=True)
                 if texte_ordre.isdigit():
                     try:
@@ -120,30 +116,31 @@ def scraper_match_table_tennis(url):
                         })
                     except Exception:
                         continue
-                
-                # Cas particulier : détection de la ligne de total (ex: "Résultat : 9 7")
-                elif "résultat" in texte_ordre.lower() or "total" in texte_ordre.lower():
-                    try:
-                        # Les scores finaux se trouvent dans les mêmes colonnes d'input (indices 6 et 7)
-                        inp_res1 = cols[6].find("input")
-                        inp_res2 = cols[7].find("input")
-                        
-                        if inp_res1 and inp_res2:
-                            score_global_equipe_1 = int(inp_res1.get("value", "0"))
-                            score_global_equipe_2 = int(inp_res2.get("value", "0"))
-                    except Exception:
-                        pass
 
-        # Sécurité : Si le score global est resté à 0-0 (ex: ligne de total absente ou structurée différemment),
-        # on le calcule de manière robuste à partir des victoires de sets récoltées.
-        if score_global_equipe_1 == 0 and score_global_equipe_2 == 0:
-            for m in matchs_individuels:
-                s1, s2 = m["sets_joueur_1"], m["sets_joueur_2"]
-                if isinstance(s1, int) and isinstance(s2, int):
-                    if s1 > s2:
-                        score_global_equipe_1 += 1
-                    elif s2 > s1:
-                        score_global_equipe_2 += 1
+    # --- 7. Extraction du Résultat Final (Votre NB) ---
+    score_global_equipe_1 = 0
+    score_global_equipe_2 = 0
+
+    # On cherche directement les inputs nommés fin1 et fin2
+    input_fin1 = soup.find("input", {"name": "fin1", "class": "matchresult"})
+    input_fin2 = soup.find("input", {"name": "fin2", "class": "matchresult"})
+
+    if input_fin1 and input_fin2:
+        try:
+            score_global_equipe_1 = int(input_fin1.get("value", "0"))
+            score_global_equipe_2 = int(input_fin2.get("value", "0"))
+        except ValueError:
+            pass
+    else:
+        # Sécurité / Plan B : Si pour une raison ou une autre ces inputs n'existent pas,
+        # on calcule le score à la main pour éviter un affichage à 0-0.
+        for m in matchs_individuels:
+            s1, s2 = m["sets_joueur_1"], m["sets_joueur_2"]
+            if isinstance(s1, int) and isinstance(s2, int):
+                if s1 > s2:
+                    score_global_equipe_1 += 1
+                elif s2 > s1:
+                    score_global_equipe_2 += 1
 
     return {
         "annee": annee,
