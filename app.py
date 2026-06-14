@@ -18,23 +18,27 @@ st.set_page_config(page_title="Ping-Point - Recherche", page_icon="🏓", layout
 mode = st.query_params.get("mode", "StatsJoueursSemaine")
 st.title(f"🏓 Recherche Avancée des Statistiques - {mode}")
 
-url_test = "https://www.frottbf.org/voirfeuille.php?semaine=2&match=9908"
+# On importe la fonction spécifique depuis le fichier scraper.py
+from scraper import scraper_match_table_tennis
 
-# Appel de la fonction
-donnees_rencontre = scraper_match_table_tennis(url_test)
+# L'URL reçue par votre application
+url_cible = "https://www.frottbf.org/voirfeuille.php?semaine=2&match=9908"
 
-# Exemple d'utilisation du résultat (ici un affichage propre)
-if "erreur" not in donnees_rencontre:
-    print(f"--- {donnees_rencontre['equipe_1']} VS {donnees_rencontre['equipe_2']} ---")
-    print(f"Saison : {donnees_rencontre['annee']} | Division : {donnees_rencontre['division']} | Semaine : {donnees_rencontre['semaine']}\n")
+# Appel de la fonction externe
+resultat = scraper_match_table_tennis(url_cible)
+
+# Utilisation des données dans votre application
+if "erreur" not in resultat:
+    print(f"Données récupérées pour la division : {resultat['division']}")
+    print(f"Match : {resultat['equipe_1']} vs {resultat['equipe_2']}")
+    print(f"Nombre de matchs individuels extraits : {len(resultat['matchs'])}")
     
-    # Affichage du premier match pour vérifier
-    premier_match = donnees_rencontre["matchs"][0]
-    print(f"Match n°{premier_match['numero_match']} :")
-    print(f"  Joueur 1 : {premier_match['joueur_1']['nom']} ({premier_match['joueur_1']['classement']}) -> Sets : {premier_match['sets_joueur_1']}")
-    print(f"  Joueur 2 : {premier_match['joueur_2']['nom']} ({premier_match['joueur_2']['classement']}) -> Sets : {premier_match['sets_joueur_2']}")
+    # Exemple pour voir le premier match
+    print("\nFocus sur le Match 1 :")
+    m1 = resultat['matchs'][0]
+    print(f"{m1['joueur_1']['nom']} vs {m1['joueur_2']['nom']} -> Score : {m1['sets_joueur_1']}-{m1['sets_joueur_2']}")
 else:
-    print(donnees_rencontre["erreur"])
+    print(f"Une erreur est survenue : {resultat['erreur']}")
 
 try:
     # Initialisation unique de la connexion pour tout l'écosystème d'applications
