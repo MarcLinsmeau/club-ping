@@ -1,6 +1,6 @@
 # app.py
 import streamlit as st
-from ScrapPage import scraper_match_table_tennis
+from ScrapPage import scraper_match_table_tennis_html
 
 # Configuration de la page Streamlit
 st.set_page_config(page_title="Scraper Tennis de Table FROTTBF", page_icon="🏓", layout="centered")
