@@ -1,83 +1,47 @@
 # app.py
+import os
+import sys
 import streamlit as st
-from scraper import lister_urls_matchs_division, scraper_match_table_tennis
 
+# --- SÉCURITÉ LINUX : CHEMINS DE RECHERCHE PYTHON ---
+chemin_app = os.path.dirname(os.path.abspath(__file__))
+if chemin_app not in sys.path:
+    sys.path.insert(0, chemin_app)
 
-# Configuration globale de la page Streamlit
-st.set_page_config(
-    page_title="Scraper FROTTBF", page_icon="🏓", layout="centered"
-)
-st.title("🏓 Outil d'extraction Tennis de Table FROTTBF")
+from st_supabase_connection import SupabaseConnection
 
-# Création des deux onglets principaux
-onglet1, onglet2 = st.tabs(
-    ["📄 Analyser un match", "🗂️ Scanner une division complète"]
-)
+# --- CONFIGURATION DE L'APPLICATION ---
+st.set_page_config(page_title="Ping-Point - Recherche", page_icon="🏓", layout="wide")
 
+# Détection dynamique de l'application cible via les paramètres d'URL
+# Par défaut, si aucun mode n'est spécifié, on charge "StatsJoueursSemaine"
+mode = st.query_params.get("mode", "StatsJoueursSemaine")
+st.title(f"🏓 Recherche Avancée des Statistiques - {mode}")
 
-# --- ONGLET 1 : ANALYSE D'UN SEUL MATCH ---
-with onglet1:
-    st.subheader("Extraction d'une feuille de match unique")
-    url_match_defaut = (
-        "https://www.frottbf.org/voirfeuille.php?semaine=2&match=9908"
-    )
-    url_saisie_match = st.text_input(
-        "Entrez l'URL du match :", value=url_match_defaut, key="match_url"
-    )
+try:
+    # Initialisation unique de la connexion pour tout l'écosystème d'applications
+    conn = st.connection("supabase", type=SupabaseConnection)
 
-    if st.button("Analyser ce match", type="primary"):
-        with st.spinner("Extraction en cours..."):
-            donnees = scraper_match_table_tennis(url_saisie_match)
+   # --- ROUTAGE ET AIGUILLAGE DES SOUS-APPS ---
+    if mode == "StatsJoueursSemaine":
+        from StatsJoueursSemaine import execution_app
+        execution_app(conn)
+        
+    elif mode == "StatsJoueursAnnee":
+        from StatsJoueursAnnee import execution_app
+        execution_app(conn)
+    
+    elif mode == "StatsJoueursAdversaire":
+        from StatsJoueursAdversaire import execution_app
+        execution_app(conn)
 
-        if "erreur" in donnees:
-            st.error(donnees["erreur"])
-        elif not donnees["matchs"]:
-            st.error("⚠️ Aucun match trouvé dans la page.")
-        else:
-            st.success("🎉 Données du match extraites avec succès !")
-            st.json(donnees)       
-            
+    elif mode == "StatsEquipe":
+        from StatsEquipe import execution_app
+        execution_app(conn)  
+    
+    else:
+        st.error(f"Le mode demandé '{mode}' est introuvable ou non configuré.")
 
-
-# --- ONGLET 2 : SCAN DE TOUTE LA DIVISION ---
-with onglet2:
-    st.subheader("Extraction globale d'une division complète")
-    url_div_defaut = "https://www.frottbf.org/resultat.php?division=140"
-    url_saisie_div = st.text_input(
-        "Entrez l'URL de la division :", value=url_div_defaut, key="div_url"
-    )
-
-    if st.button("Lancer le scan de la division", type="primary"):
-        with st.spinner("Lecture du calendrier de la division..."):
-            liens_decouverts = lister_urls_matchs_division(url_saisie_div)
-
-        if not liens_decouverts:
-            st.error("⚠️ Aucun lien de match trouvé sur cette page de division.")
-        else:
-            st.success(f"🔥 **{len(liens_decouverts)}** rencontres détectées au calendrier.")
-
-            tous_les_matchs_scrapes = []
-            barre_progression = st.progress(0)
-            status_text = st.empty()
-
-            # Extraction en masse à pleine vitesse (sans micropause)
-            for index, lien in enumerate(liens_decouverts):
-                status_text.text(f"Analyse rencontre {index+1}/{len(liens_decouverts)}...")
-                resultat_m = scraper_match_table_tennis(lien)
-                
-                if "erreur" not in resultat_m:
-                    tous_les_matchs_scrapes.append(resultat_m)
-                    
-                barre_progression.progress((index + 1) / len(liens_decouverts))
-
-            # Nettoyage des éléments de chargement
-            status_text.empty()
-            barre_progression.empty()
-            st.success("✅ Extraction de la division terminée avec succès !")
-
-            # --- AFFICHAGE MINIMALISTE DE TOUTES LES RENCONTRES ---
-            st.write("### 📅 Liste récapitulative des rencontres de la saison")
-
-            st.json(tous_les_matchs_scrapes) 
-            
-            
+except Exception as e:
+    st.error("Une erreur technique globale est survenue lors du chargement de la page.")
+    st.exception(e)
