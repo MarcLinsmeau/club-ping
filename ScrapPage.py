@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 def scraper_match_table_tennis(url):
     """Télécharge une page de match FROTTBF via son URL et extrait
 
-    toutes les données de manière reproductible.
+    toutes les données de manière reproductible (y compris le score global).
     """
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -73,8 +73,11 @@ def scraper_match_table_tennis(url):
                 classement = match_infos.group(2).strip()
                 dictionnaire_classements[nom_complet] = classement
 
-    # --- 6. Extraction des 16 Matchs ---
+    # --- 6. Extraction des Matchs et du Score Global ---
     matchs_individuels = []
+    score_global_equipe_1 = 0
+    score_global_equipe_2 = 0
+    
     table = soup.find("table")
 
     if table:
@@ -84,54 +87,63 @@ def scraper_match_table_tennis(url):
         for row in rows:
             cols = row.find_all("td")
             if len(cols) >= 8:
-                try:
-                    ordre = int(cols[0].get_text(strip=True))
+                # Véritable ligne de match individuel (commence par un numéro de 1 à 16)
+                texte_ordre = cols[0].get_text(strip=True)
+                if texte_ordre.isdigit():
+                    try:
+                        ordre = int(texte_ordre)
 
-                    span_j1 = cols[1].find("span")
-                    span_j2 = cols[5].find("span")
+                        span_j1 = cols[1].find("span")
+                        span_j2 = cols[5].find("span")
 
-                    j1_nom = (
-                        span_j1.get_text(strip=True)
-                        if span_j1
-                        else cols[1].get_text(strip=True)
-                    )
-                    j2_nom = (
-                        span_j2.get_text(strip=True)
-                        if span_j2
-                        else cols[5].get_text(strip=True)
-                    )
+                        j1_nom = span_j1.get_text(strip=True) if span_j1 else cols[1].get_text(strip=True)
+                        j2_nom = span_j2.get_text(strip=True) if span_j2 else cols[5].get_text(strip=True)
 
-                    j1_classement = dictionnaire_classements.get(
-                        j1_nom, "Non spécifié"
-                    )
-                    j2_classement = dictionnaire_classements.get(
-                        j2_nom, "Non spécifié"
-                    )
+                        j1_classement = dictionnaire_classements.get(j1_nom, "Non spécifié")
+                        j2_classement = dictionnaire_classements.get(j2_nom, "Non spécifié")
 
-                    input_set_j1 = cols[6].find("input")
-                    input_set_j2 = cols[7].find("input")
+                        input_set_j1 = cols[6].find("input")
+                        input_set_j2 = cols[7].find("input")
 
-                    sets_j1 = (
-                        input_set_j1.get("value", "0") if input_set_j1 else "0"
-                    )
-                    sets_j2 = (
-                        input_set_j2.get("value", "0") if input_set_j2 else "0"
-                    )
+                        sets_j1 = input_set_j1.get("value", "0") if input_set_j1 else "0"
+                        sets_j2 = input_set_j2.get("value", "0") if input_set_j2 else "0"
 
-                    sets_j1 = int(sets_j1) if sets_j1.isdigit() else sets_j1
-                    sets_j2 = int(sets_j2) if sets_j2.isdigit() else sets_j2
+                        sets_j1 = int(sets_j1) if sets_j1.isdigit() else sets_j1
+                        sets_j2 = int(sets_j2) if sets_j2.isdigit() else sets_j2
 
-                    matchs_individuels.append(
-                        {
+                        matchs_individuels.append({
                             "numero_match": ordre,
                             "joueur_1": {"nom": j1_nom, "classement": j1_classement},
                             "joueur_2": {"nom": j2_nom, "classement": j2_classement},
                             "sets_joueur_1": sets_j1,
                             "sets_joueur_2": sets_j2,
-                        }
-                    )
-                except Exception:
-                    continue
+                        })
+                    except Exception:
+                        continue
+                
+                # Cas particulier : détection de la ligne de total (ex: "Résultat : 9 7")
+                elif "résultat" in texte_ordre.lower() or "total" in texte_ordre.lower():
+                    try:
+                        # Les scores finaux se trouvent dans les mêmes colonnes d'input (indices 6 et 7)
+                        inp_res1 = cols[6].find("input")
+                        inp_res2 = cols[7].find("input")
+                        
+                        if inp_res1 and inp_res2:
+                            score_global_equipe_1 = int(inp_res1.get("value", "0"))
+                            score_global_equipe_2 = int(inp_res2.get("value", "0"))
+                    except Exception:
+                        pass
+
+        # Sécurité : Si le score global est resté à 0-0 (ex: ligne de total absente ou structurée différemment),
+        # on le calcule de manière robuste à partir des victoires de sets récoltées.
+        if score_global_equipe_1 == 0 and score_global_equipe_2 == 0:
+            for m in matchs_individuels:
+                s1, s2 = m["sets_joueur_1"], m["sets_joueur_2"]
+                if isinstance(s1, int) and isinstance(s2, int):
+                    if s1 > s2:
+                        score_global_equipe_1 += 1
+                    elif s2 > s1:
+                        score_global_equipe_2 += 1
 
     return {
         "annee": annee,
@@ -139,6 +151,8 @@ def scraper_match_table_tennis(url):
         "semaine": semaine,
         "equipe_1": equipe1,
         "equipe_2": equipe2,
+        "score_global_equipe_1": score_global_equipe_1,
+        "score_global_equipe_2": score_global_equipe_2,
         "matchs": matchs_individuels,
     }
 
@@ -165,12 +179,8 @@ def lister_urls_matchs_division(url_division):
     for link in soup.find_all("a", href=True):
         href = link["href"]
         if "voirfeuille.php" in href:
-            if href.startswith("voirfeuille.php") or href.startswith(
-                "/voirfeuille.php"
-            ):
-                url_complete = (
-                    "https://www.frottbf.org/" + href.lstrip("/")
-                )
+            if href.startswith("voirfeuille.php") or href.startswith("/voirfeuille.php"):
+                url_complete = "https://www.frottbf.org/" + href.lstrip("/")
             else:
                 url_complete = href
 
