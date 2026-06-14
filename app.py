@@ -1,6 +1,6 @@
 # app.py
 import streamlit as st
-from ScrapPage import lister_urls_matchs_division, scraper_match_table_tennis
+from scraper import lister_urls_matchs_division, scraper_match_table_tennis
 
 
 # Configuration globale de la page Streamlit
