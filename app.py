@@ -18,28 +18,28 @@ st.set_page_config(page_title="Ping-Point - Recherche", page_icon="🏓", layout
 mode = st.query_params.get("mode", "StatsJoueursSemaine")
 st.title(f"🏓 Recherche Avancée des Statistiques - {mode}")
 
-# On importe la fonction spécifique depuis le fichier scraper.py
-from ScrapPage import scraper_match_table_tennis
+# app.py
+from scraper import scraper_match_table_tennis
+import streamlit as st
 
-# L'URL reçue par votre application
 url_cible = "https://www.frottbf.org/voirfeuille.php?semaine=2&match=9908"
 
-# Appel de la fonction externe
 resultat = scraper_match_table_tennis(url_cible)
 
-# Utilisation des données dans votre application
-if "erreur" not in resultat:
-    print(f"Données récupérées pour la division : {resultat['division']}")
-    print(f"Match : {resultat['equipe_1']} vs {resultat['equipe_2']}")
-    print(f"Nombre de matchs individuels extraits : {len(resultat['matchs'])}")
-    
-    # Exemple pour voir le premier match
-    print("\nFocus sur le Match 1 :")
-    m1 = resultat['matchs'][0]
-    print(f"{m1['joueur_1']['nom']} vs {m1['joueur_2']['nom']} -> Score : {m1['sets_joueur_1']}-{m1['sets_joueur_2']}")
+if "erreur" in resultat:
+    st.error(f"Erreur de scraping : {resultat['erreur']}")
+elif not resultat["matchs"]:
+    st.warning(
+        "La page a été chargée mais aucun match n'a pu être extrait. Le site bloque peut-être la requête."
+    )
 else:
-    print(f"Une erreur est survenue : {resultat['erreur']}")
+    st.success(f"Match : {resultat['equipe_1']} vs {resultat['equipe_2']}")
 
+    # On ne demande le match 0 QUE si la liste n'est pas vide
+    m1 = resultat["matchs"][0]
+    st.write(
+        f"Match 1 : {m1['joueur_1']['nom']} vs {m1['joueur_2']['nom']} ({m1['sets_joueur_1']}-{m1['sets_joueur_2']})"
+    )
 try:
     # Initialisation unique de la connexion pour tout l'écosystème d'applications
     conn = st.connection("supabase", type=SupabaseConnection)
