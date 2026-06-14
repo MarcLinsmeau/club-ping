@@ -19,7 +19,7 @@ mode = st.query_params.get("mode", "StatsJoueursSemaine")
 st.title(f"🏓 Recherche Avancée des Statistiques - {mode}")
 
 # On importe la fonction spécifique depuis le fichier scraper.py
-from scraper import scraper_match_table_tennis
+from ScrapPage import scraper_match_table_tennis
 
 # L'URL reçue par votre application
 url_cible = "https://www.frottbf.org/voirfeuille.php?semaine=2&match=9908"
