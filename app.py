@@ -1,84 +1,181 @@
-# app.py
-import streamlit as st
-from ScrapPage import scraper_match_table_tennis
+# scraper.py
+import re
+import requests
+from bs4 import BeautifulSoup
 
-# Config de la page
-st.set_page_config(
-    page_title="Scraper Tennis de Table FROTTBF", page_icon="🏓", layout="centered"
-)
 
-st.title("🏓 Extraction de Feuille de Match FROTTBF")
-st.write(
-    "Entrez l'URL d'une feuille de match pour extraire instantanément toutes ses données."
-)
+def scraper_match_table_tennis(url):
+    """Télécharge une page de match FROTTBF via son URL et extrait
 
-# Champ URL
-url_defaut = "https://www.frottbf.org/voirfeuille.php?semaine=2&match=9908"
-url_saisie = st.text_input("URL de la feuille de match :", value=url_defaut)
+    toutes les données de manière reproductible.
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "fr,fr-FR;q=0.9,en;q=0.8",
+    }
 
-if st.button("Analyser la rencontre", type="primary"):
-    with st.spinner("Connexion et extraction des données en cours..."):
-        # On passe directement l'URL saisie à la fonction
-        donnees = scraper_match_table_tennis(url_saisie)
+    try:
+        response = requests.get(url, headers=headers, timeout=15)
+        if response.status_code != 200:
+            return {
+                "erreur": f"Le site FROTTBF a répondu avec un code d'erreur : {response.status_code}",
+                "matchs": [],
+            }
+    except Exception as e:
+        return {
+            "erreur": f"Impossible de se connecter au serveur FROTTBF : {str(e)}",
+            "matchs": [],
+        }
 
-    # Traitement des résultats
-    if "erreur" in donnees:
-        st.error(donnees["erreur"])
+    soup = BeautifulSoup(response.content, "html.parser")
 
-    elif not donnees["matchs"]:
-        st.error(
-            "⚠️ Aucun tableau de match n'a pu être trouvé. Le site bloque peut-être l'application ou l'URL est incorrecte."
-        )
+    # --- 1. Extraction de la Division ---
+    h1_text = soup.find("h1").get_text(strip=True) if soup.find("h1") else ""
+    division = h1_text.replace("Rencontre de division", "").strip()
 
-    else:
-        st.success("🎉 Données extraites avec succès !")
-        st.write(donnees)
+    # --- 2. Extraction de la Semaine ---
+    semaine = None
+    semaine_text = soup.find(string=re.compile(r"Semaine\s+\d+"))
+    if semaine_text:
+        match_semaine = re.search(r"Semaine\s+(\d+)", semaine_text)
+        if match_semaine:
+            semaine = int(match_semaine.group(1))
 
-        
-# app.py
-import os
-import sys
-import streamlit as st
+    # --- 3. Extraction de l'Année ---
+    annee = 2025  # Valeur par défaut
+    input_date = soup.find("input", {"id": "matchdate"})
+    if input_date and input_date.get("value"):
+        match_annee = re.search(r"(\d{4})-\d{2}-\d{2}", input_date["value"])
+        if match_annee:
+            annee = int(match_annee.group(1))
 
-# --- SÉCURITÉ LINUX : CHEMINS DE RECHERCHE PYTHON ---
-chemin_app = os.path.dirname(os.path.abspath(__file__))
-if chemin_app not in sys.path:
-    sys.path.insert(0, chemin_app)
+    # --- 4. Extraction des Équipes ---
+    equipe1, equipe2 = "", ""
+    for h4 in soup.find_all("h4"):
+        texte = h4.get_text(strip=True)
+        if "Club Visité" in texte:
+            nom_brut = texte.split(":")[-1].strip()
+            equipe1 = re.sub(r"^\d+\s*-\s*", "", nom_brut)
+        elif "Club Visiteur" in texte:
+            nom_brut = texte.split(":")[-1].strip()
+            equipe2 = re.sub(r"^\d+\s*-\s*", "", nom_brut)
 
-from st_supabase_connection import SupabaseConnection
+    # --- 5. Cartographie des classements depuis les compositions ---
+    dictionnaire_classements = {}
+    inputs_joueurs = soup.find_all("input", {"id": re.compile(r"joueur\d+")})
+    for inp in inputs_joueurs:
+        valeur_joueur = inp.get("value", "")
+        if valeur_joueur:
+            match_infos = re.search(r"-\s*([^(]+)\s*\(([^)]+)\)", valeur_joueur)
+            if match_infos:
+                nom_complet = match_infos.group(1).strip()
+                classement = match_infos.group(2).strip()
+                dictionnaire_classements[nom_complet] = classement
 
-# --- CONFIGURATION DE L'APPLICATION ---
-st.set_page_config(page_title="Ping-Point - Recherche", page_icon="🏓", layout="wide")
+    # --- 6. Extraction des 16 Matchs ---
+    matchs_individuels = []
+    table = soup.find("table")
 
-# Détection dynamique de l'application cible via les paramètres d'URL
-# Par défaut, si aucun mode n'est spécifié, on charge "StatsJoueursSemaine"
-mode = st.query_params.get("mode", "StatsJoueursSemaine")
-st.title(f"🏓 Recherche Avancée des Statistiques - {mode}")
+    if table:
+        tbody = table.find("tbody")
+        rows = tbody.find_all("tr") if tbody else table.find_all("tr")
 
-try:
-    # Initialisation unique de la connexion pour tout l'écosystème d'applications
-    conn = st.connection("supabase", type=SupabaseConnection)
+        for row in rows:
+            cols = row.find_all("td")
+            if len(cols) >= 8:
+                try:
+                    ordre = int(cols[0].get_text(strip=True))
 
-   # --- ROUTAGE ET AIGUILLAGE DES SOUS-APPS ---
-    if mode == "StatsJoueursSemaine":
-        from StatsJoueursSemaine import execution_app
-        execution_app(conn)
-        
-    elif mode == "StatsJoueursAnnee":
-        from StatsJoueursAnnee import execution_app
-        execution_app(conn)
-    
-    elif mode == "StatsJoueursAdversaire":
-        from StatsJoueursAdversaire import execution_app
-        execution_app(conn)
+                    span_j1 = cols[1].find("span")
+                    span_j2 = cols[5].find("span")
 
-    elif mode == "StatsEquipe":
-        from StatsEquipe import execution_app
-        execution_app(conn)  
-    
-    else:
-        st.error(f"Le mode demandé '{mode}' est introuvable ou non configuré.")
+                    j1_nom = (
+                        span_j1.get_text(strip=True)
+                        if span_j1
+                        else cols[1].get_text(strip=True)
+                    )
+                    j2_nom = (
+                        span_j2.get_text(strip=True)
+                        if span_j2
+                        else cols[5].get_text(strip=True)
+                    )
 
-except Exception as e:
-    st.error("Une erreur technique globale est survenue lors du chargement de la page.")
-    st.exception(e)
+                    j1_classement = dictionnaire_classements.get(
+                        j1_nom, "Non spécifié"
+                    )
+                    j2_classement = dictionnaire_classements.get(
+                        j2_nom, "Non spécifié"
+                    )
+
+                    input_set_j1 = cols[6].find("input")
+                    input_set_j2 = cols[7].find("input")
+
+                    sets_j1 = (
+                        input_set_j1.get("value", "0") if input_set_j1 else "0"
+                    )
+                    sets_j2 = (
+                        input_set_j2.get("value", "0") if input_set_j2 else "0"
+                    )
+
+                    sets_j1 = int(sets_j1) if sets_j1.isdigit() else sets_j1
+                    sets_j2 = int(sets_j2) if sets_j2.isdigit() else sets_j2
+
+                    matchs_individuels.append(
+                        {
+                            "numero_match": ordre,
+                            "joueur_1": {"nom": j1_nom, "classement": j1_classement},
+                            "joueur_2": {"nom": j2_nom, "classement": j2_classement},
+                            "sets_joueur_1": sets_j1,
+                            "sets_joueur_2": sets_j2,
+                        }
+                    )
+                except Exception:
+                    continue
+
+    return {
+        "annee": annee,
+        "division": division,
+        "semaine": semaine,
+        "equipe_1": equipe1,
+        "equipe_2": equipe2,
+        "matchs": matchs_individuels,
+    }
+
+
+def lister_urls_matchs_division(url_division):
+    """Scanne la page calendrier d'une division FROTTBF (ex: resultat.php?division=140)
+
+    et extrait tous les liens vers les feuilles de match individuelles.
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    }
+
+    urls_matchs = []
+
+    try:
+        response = requests.get(url_division, headers=headers, timeout=15)
+        if response.status_code != 200:
+            return []
+    except Exception:
+        return []
+
+    soup = BeautifulSoup(response.content, "html.parser")
+
+    for link in soup.find_all("a", href=True):
+        href = link["href"]
+        if "voirfeuille.php" in href:
+            if href.startswith("voirfeuille.php") or href.startswith(
+                "/voirfeuille.php"
+            ):
+                url_complete = (
+                    "https://www.frottbf.org/" + href.lstrip("/")
+                )
+            else:
+                url_complete = href
+
+            if url_complete not in urls_matchs:
+                urls_matchs.append(url_complete)
+
+    return urls_matchs
