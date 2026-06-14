@@ -4,7 +4,7 @@ on:
   # 1. Déclenchement planifié (Cron)
   schedule:
     # Se déclenche tous les dimanches soir à 22h00 UTC (soit 23h ou 00h en Belgique selon l'heure d'été/hiver)
-    - cron: '0 22 * * 0'
+    - cron: '0 15 * * 0'
   
   # 2. Déclenchement manuel (Permet de lancer le script en un clic depuis l'interface GitHub)
   workflow_dispatch:
