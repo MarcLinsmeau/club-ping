@@ -28,6 +28,7 @@ with onglet1:
     if st.button("Analyser ce match", type="primary"):
         with st.spinner("Extraction en cours..."):
             donnees = scraper_match_table_tennis(url_saisie_match)
+            st.json(donnees)
 
         if "erreur" in donnees:
             st.error(donnees["erreur"])
