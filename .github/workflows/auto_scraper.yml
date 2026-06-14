@@ -1,0 +1,35 @@
+name: Extraction Automatique FROTTBF
+
+on:
+  # 1. Déclenchement planifié (Cron)
+  schedule:
+    # Se déclenche tous les dimanches soir à 22h00 UTC (soit 23h ou 00h en Belgique selon l'heure d'été/hiver)
+    - cron: '0 22 * * 0'
+  
+  # 2. Déclenchement manuel (Permet de lancer le script en un clic depuis l'interface GitHub)
+  workflow_dispatch:
+
+jobs:
+  run-scraper-job:
+    runs-on: ubuntu-latest # GitHub ouvre un mini-serveur Linux gratuit pour vous
+
+    steps:
+      # Étape A : Copier votre code sur le serveur temporaire
+      - name: Récupérer le code du dépôt
+        uses: actions/checkout@v4
+
+      # Étape B : Installer Python
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # Étape C : Installer les bibliothèques requises
+      - name: Installer les dépendances
+        run: |
+          pip install requests beautifulsoup4
+          # Ajoutez ici votre connecteur de DB plus tard (ex: pip install pymongo ou psycopg2)
+
+      # Étape D : Lancer le script !
+      - name: Exécuter le scraper
+        run: python cron_scraper.py
