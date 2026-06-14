@@ -1,6 +1,6 @@
 # app.py
 import streamlit as st
-from scraper import lister_urls_matchs_division, scraper_match_table_tennis
+from ScrapPage import lister_urls_matchs_division, scraper_match_table_tennis
 
 st.set_page_config(
     page_title="Scraper FROTTBF", page_icon="🏓", layout="centered"
