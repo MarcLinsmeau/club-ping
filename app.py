@@ -15,7 +15,7 @@ url_saisie = st.text_input("URL de la feuille de match :", value=url_defaut)
 if st.button("Analyser la rencontre", type="primary"):
     with st.spinner("Extraction des données en cours depuis le site de la FROTTBF..."):
         # Appel de la fonction située dans scraper.py
-        donnees = scraper_match_table_tennis(url_saisie)
+        donnees = scraper_match_table_tennis_html(url_saisie)
         
     # --- Gestion et affichage des résultats ---
     if "erreur" in donnees:
