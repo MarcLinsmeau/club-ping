@@ -1,37 +1,14 @@
 # scraper.py
 import re
-import streamlit as st
-import requests
 from bs4 import BeautifulSoup
 
-def scraper_match_table_tennis(url):
-    """
-    Extrait dynamiquement les données d'une feuille de match FROTTBF.
-    Gère les blocages de serveurs en simulant un navigateur humain.
-    """
-    # Configuration de faux en-têtes de navigateur (Headers) pour éviter le blocage sur Streamlit Cloud
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-        "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Referer": "https://www.frottbf.org/"
-    }
 
-    try:
-        response = requests.get(url, headers=headers, timeout=15)
-        if response.status_code != 200:
-            return {
-                "erreur": f"Le site FROTTBF a répondu avec un code d'erreur : {response.status_code}",
-                "matchs": []
-            }        
-    except Exception as e:
-        return {
-            "erreur": f"Impossible de se connecter au serveur : {str(e)}",
-            "matchs": []
-        }
+def scraper_match_table_tennis_html(html_content):
+    """Analyse le contenu HTML brut d'une feuille de match FROTTBF et en extrait
 
-    soup = BeautifulSoup(response.content, "html.parser")
-    st.write(soup)
+    toutes les informations requises de manière reproductible.
+    """
+    soup = BeautifulSoup(html_content, "html.parser")
 
     # --- 1. Extraction de la Division ---
     h1_text = soup.find("h1").get_text(strip=True) if soup.find("h1") else ""
@@ -46,11 +23,10 @@ def scraper_match_table_tennis(url):
             semaine = int(match_semaine.group(1))
 
     # --- 3. Extraction de l'Année ---
-    annee = 2025  # Année par défaut demandée
-    date_label = soup.find(string=re.compile(r"Date du match"))
-    if date_label:
-        parent_text = date_label.parent.get_text()
-        match_annee = re.search(r"(\d{4})-\d{2}-\d{2}", parent_text)
+    annee = 2025  # Valeur par défaut
+    input_date = soup.find("input", {"id": "matchdate"})
+    if input_date and input_date.get("value"):
+        match_annee = re.search(r"(\d{4})-\d{2}-\d{2}", input_date["value"])
         if match_annee:
             annee = int(match_annee.group(1))
 
@@ -60,47 +36,61 @@ def scraper_match_table_tennis(url):
         texte = h4.get_text(strip=True)
         if "Club Visité" in texte:
             nom_brut = texte.split(":")[-1].strip()
-            equipe1 = re.sub(r"^\d+\s*-\s*", "", nom_brut)  # Retire le matricule "234 - "
+            equipe1 = re.sub(r"^\d+\s*-\s*", "", nom_brut)
         elif "Club Visiteur" in texte:
             nom_brut = texte.split(":")[-1].strip()
-            equipe2 = re.sub(r"^\d+\s*-\s*", "", nom_brut)  # Retire le matricule "94 - "
+            equipe2 = re.sub(r"^\d+\s*-\s*", "", nom_brut)
 
-    # --- 5. Extraction des 16 Matchs Individuels ---
+    # --- 5. Cartographie des joueurs et de leurs classements ---
+    # On crée un dictionnaire pour lier les noms des joueurs à leurs classements
+    # car le grand tableau du bas contient uniquement les noms de famille et prénoms.
+    dictionnaire_classements = {}
+
+    # Parcourir tous les inputs de type texte contenant les fiches des joueurs
+    inputs_joueurs = soup.find_all("input", {"id": re.compile(r"joueur\d+")})
+    for inp in inputs_joueurs:
+        valeur_joueur = inp.get("value", "")  # Ex: "24986 - GRANDJEAN Virginie (E1)"
+        if valeur_joueur:
+            # Extraction du Nom Prénom et du Classement
+            match_infos = re.search(r"-\s*([^(]+)\s*\(([^)]+)\)", valeur_joueur)
+            if match_infos:
+                nom_complet = match_infos.group(1).strip()  # GRANDJEAN Virginie
+                classement = match_infos.group(2).strip()  # E1
+                dictionnaire_classements[nom_complet] = classement
+
+    # --- 6. Extraction des Matchs depuis le Tableau ---
     matchs_individuels = []
     table = soup.find("table")
 
     if table:
-        rows = table.find_all("tr")
+        tbody = table.find("tbody")
+        rows = tbody.find_all("tr") if tbody else table.find_all("tr")
+
         for row in rows:
             cols = row.find_all("td")
-            # Une ligne valide sur la FROTTBF contient au moins 9 colonnes de données
-            if len(cols) >= 9:
+            if len(cols) >= 8:
                 try:
+                    # Numéro d'ordre du match
                     ordre = int(cols[0].get_text(strip=True))
 
-                    # Joueur 1 (Visité) et son classement
-                    j1_brut = cols[1].get_text(strip=True)
-                    j1_classement = "Non spécifié"
-                    match_c1 = re.search(r"\((.*?)\)", j1_brut)
-                    if match_c1:
-                        j1_classement = match_c1.group(1)
-                        j1_nom = re.sub(r"\(.*?\)", "", j1_brut).strip()
-                    else:
-                        j1_nom = j1_brut
+                    # Extraction des noms de joueurs (balises <span>)
+                    j1_nom = cols[1].find("span").get_text(strip=True)
+                    j2_nom = cols[5].find("span").get_text(strip=True)
 
-                    # Joueur 2 (Visiteur) et son classement
-                    j2_brut = cols[5].get_text(strip=True)
-                    j2_classement = "Non spécifié"
-                    match_c2 = re.search(r"\((.*?)\)", j2_brut)
-                    if match_c2:
-                        j2_classement = match_c2.group(1)
-                        j2_nom = re.sub(r"\(.*?\)", "", j2_brut).strip()
-                    else:
-                        j2_nom = j2_brut
+                    # Récupération des classements associés via notre dictionnaire créé à l'étape 5
+                    j1_classement = dictionnaire_classements.get(j1_nom, "Non spécifié")
+                    j2_classement = dictionnaire_classements.get(j2_nom, "Non spécifié")
 
-                    # Nombre de sets gagnés (deux dernières colonnes du tableau)
-                    sets_j1 = int(cols[-2].get_text(strip=True))
-                    sets_j2 = int(cols[-1].get_text(strip=True))
+                    # Extraction des sets gagnés dans les attributs 'value' des inputs
+                    input_set_j1 = cols[6].find("input")
+                    input_set_j2 = cols[7].find("input")
+
+                    sets_j1 = input_set_j1.get("value", "0") if input_set_j1 else "0"
+                    sets_j2 = input_set_j2.get("value", "0") if input_set_j2 else "0"
+
+                    # Conversion sécurisée en entier (gestion du cas "WO")
+                    sets_j1 = int(sets_j1) if sets_j1.isdigit() else sets_j1
+                    sets_j2 = int(sets_j2) if sets_j2.isdigit() else sets_j2
 
                     matchs_individuels.append({
                         "numero_match": ordre,
@@ -115,8 +105,7 @@ def scraper_match_table_tennis(url):
                         "sets_joueur_1": sets_j1,
                         "sets_joueur_2": sets_j2
                     })
-                except (ValueError, IndexError):
-                    # Ignore proprement les lignes d'en-tête intermédiaires ou corrompues
+                except (ValueError, IndexError, AttributeError):
                     continue
 
     return {
