@@ -1,84 +1,70 @@
-# StatsEquipe.py
+# app.py
+import os
+import sys
 import streamlit as st
-import pandas as pd
-import utils
 
-def execution_app(conn, mode):
-    """
-    Conteneur : Synthèse hebdomadaire.
-    Le paramètre 'mode' permet de filtrer les métriques affichées.
-    """
+# --- SÉCURITÉ LINUX : CHEMINS DE RECHERCHE PYTHON ---
+chemin_app = os.path.dirname(os.path.abspath(__file__))
+if chemin_app not in sys.path:
+    sys.path.insert(0, chemin_app)
+
+from st_supabase_connection import SupabaseConnection
+
+# --- CONFIGURATION DE L'APPLICATION ---
+st.set_page_config(page_title="Ping-Point - Recherche", page_icon="🏓", layout="wide")
+
+# Définition des modes disponibles
+modes_disponibles = {
+    "StatsJoueursSemaine": "Stats Joueurs Hebdo",
+    "StatsJoueursAnnee": "Stats Joueurs Année",
+    "StatsJoueursAdversaire": "Stats Joueurs vs Adversaire",
+    "StatsEquipe": "Stats Équipe"
+}
+
+# --- NAVIGATION VIA SIDEBAR ---
+st.sidebar.title("Navigation")
+mode_courant = st.query_params.get("mode", "StatsJoueursSemaine")
+
+# Sélection du mode
+nouveau_mode = st.sidebar.selectbox(
+    "Choisir une vue :",
+    options=list(modes_disponibles.keys()),
+    format_func=lambda x: modes_disponibles[x],
+    index=list(modes_disponibles.keys()).index(mode_courant) if mode_courant in modes_disponibles else 0
+)
+
+# Mise à jour de l'URL si le mode change
+if nouveau_mode != mode_courant:
+    st.query_params["mode"] = nouveau_mode
+    st.rerun()
+
+st.title(f"🏓 {modes_disponibles.get(nouveau_mode, 'Recherche')}")
+
+try:
+    # Initialisation unique de la connexion
+    conn = st.connection("supabase", type=SupabaseConnection)
+
+    # --- ROUTAGE ET AIGUILLAGE DES SOUS-APPS ---
+    if nouveau_mode == "StatsJoueursSemaine":
+        from StatsJoueursSemaine import execution_app
+        execution_app(conn)
+        
+    elif nouveau_mode == "StatsJoueursAnnee":
+        from StatsJoueursAnnee import execution_app
+        execution_app(conn)
     
-    # --- ÉTAT DES SESSIONS & INTERFACE ---
-    for key, val in [("annee_choisie", None), ("club_choisi", None), ("division_choisie", None)]:
-        if key not in st.session_state: st.session_state[key] = val
+    elif nouveau_mode == "StatsJoueursAdversaire":
+        from StatsJoueursAdversaire import execution_app
+        execution_app(conn)
 
-    def reset_suivant(niveau):
-        if niveau <= 1: st.session_state.club_choisi = None
-        if niveau <= 2: st.session_state.division_choisie = None
-
-    st.subheader("🔍 Filtres de sélection")
-    st.segmented_control("Année", options=utils.charger_annees(conn), key="annee_choisie", selection_mode="single", on_change=reset_suivant, args=(1,), label_visibility="collapsed")
-    if st.session_state.annee_choisie:
-        st.segmented_control("Club", options=utils.charger_clubs_par_annee(conn, st.session_state.annee_choisie), key="club_choisi", selection_mode="single", on_change=reset_suivant, args=(2,), label_visibility="collapsed")
-    if st.session_state.annee_choisie and st.session_state.club_choisi:
-        st.segmented_control("Division", options=utils.charger_equipes_complet(conn, st.session_state.annee_choisie, [st.session_state.club_choisi]), key="division_choisie", selection_mode="single", label_visibility="collapsed")
-
-    # --- REQUÊTAGE ET TCD ---
-    st.markdown("---")
-    if not (st.session_state.annee_choisie and st.session_state.club_choisi and st.session_state.division_choisie):
-        st.info("💡 Veuillez sélectionner une Année, un Club et une Division.")
+    elif nouveau_mode == "StatsEquipe":
+        # Ici, vous pouvez ajouter le paramètre optionnel si nécessaire
+        from StatsEquipe import execution_app
+        execution_app(conn)  
+    
     else:
-        req = conn.table("test").select("*").eq("Annee", st.session_state.annee_choisie).eq("Equipe1", st.session_state.club_choisi).eq("Division", st.session_state.division_choisie)
-        df_res = pd.DataFrame(req.limit(50000).execute().data)
+        st.error(f"Le mode demandé '{nouveau_mode}' est introuvable.")
 
-        if df_res.empty:
-            st.warning("⚠️ Aucun record trouvé.")
-        else:
-            # Choix des colonnes selon le mode
-            if mode == "Standard":
-                cols_to_use = ["Sélect", "Joués", "Vict", "Points"]
-            else: # Exemple pour Détaillé/Comparatif
-                cols_to_use = ["Sélect", "Joués", "Vict"]
-
-            # 1. Calcul agrégé
-            df_g = df_res.groupby(["Semaine", "Equipe2", "Joueur1"]).agg(
-                Sélect=("MatchNonFF", "size"),
-                Joués=("Match", "size"),
-                Vict=("VictoireJ1", "sum"),
-                Points=("PointsJ1", "sum")
-            )
-            
-            # 2. Construction du tableau
-            joueurs = sorted(df_g.index.get_level_values("Joueur1").unique())
-            df_list = []
-            for joueur in joueurs:
-                df_j = df_g.xs(joueur, level="Joueur1")[cols_to_use]
-                df_j.columns = pd.MultiIndex.from_product([[joueur], df_j.columns])
-                df_list.append(df_j)
-            
-            # Concaténation
-            df_pivot = pd.concat(df_list, axis=1).fillna(0)
-            df_pivot = df_pivot.sort_index(level="Semaine", key=lambda x: x.map(utils.parse_semaine))
-
-            # 3. Conversion en entier et remplacement des 0 par des vides
-            df_pivot = df_pivot.astype(int).replace(0, "")
-            
-            # 4. Calcul du total
-            total_row = pd.DataFrame(df_pivot.replace("", 0).sum()).T.astype(int)
-            total_row.index = pd.MultiIndex.from_tuples([("Total", "")], names=["Semaine", "Equipe2"])
-            df_pivot = pd.concat([df_pivot, total_row])
-
-            # 5. Affichage final
-            st.subheader(f"📋 Synthèse hebdomadaire ({len(df_res)} match(s)) - Mode : {mode}")
-            
-            st_style = df_pivot.style.set_properties(**{'border': '1px solid #d3d3d3', 'text-align': 'center'}) \
-                                     .set_table_styles([{'selector': 'th', 'props': [('border', '1px solid #d3d3d3')]}])
-            
-            hauteur_calc = (len(df_pivot) + 1) * 38
-            
-            st.dataframe(
-                st_style, 
-                use_container_width=True, 
-                height=hauteur_calc
-            )
+except Exception as e:
+    st.error("Une erreur technique globale est survenue.")
+    st.exception(e)
