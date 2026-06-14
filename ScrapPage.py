@@ -5,9 +5,9 @@ from bs4 import BeautifulSoup
 
 
 def scraper_match_table_tennis(url):
-    """Télécharge une page de match FROTTBF via son URL et extrait
+    """Télécharge une page de match FROTTBF via son URL et extrait toutes les données
 
-    toutes les données de manière reproductible (y compris le score global officiel).
+    de manière reproductible (y compris la détection des forfaits).
     """
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -61,7 +61,24 @@ def scraper_match_table_tennis(url):
             nom_brut = texte.split(":")[-1].strip()
             equipe2 = re.sub(r"^\d+\s*-\s*", "", nom_brut)
 
-    # --- 5. Cartographie des classements depuis les compositions ---
+    # --- 5. Détection des Forfaits (Nouveau) ---
+    # On cherche les inputs cachés spécifiques 'forfaitvisite' (équipe 1) et 'forfaitvisiteur' (équipe 2)
+    input_forfait_1 = soup.find("input", {"id": "forfaitvisite"})
+    input_forfait_2 = soup.find("input", {"id": "forfaitvisiteur"})
+
+    # Si l'input existe et que sa valeur est "1", l'équipe est forfait
+    forfait_equipe_1 = (
+        True
+        if input_forfait_1 and input_forfait_1.get("value") == "1"
+        else False
+    )
+    forfait_equipe_2 = (
+        True
+        if input_forfait_2 and input_forfait_2.get("value") == "1"
+        else False
+    )
+
+    # --- 6. Cartographie des classements depuis les compositions ---
     dictionnaire_classements = {}
     inputs_joueurs = soup.find_all("input", {"id": re.compile(r"joueur\d+")})
     for inp in inputs_joueurs:
@@ -73,7 +90,7 @@ def scraper_match_table_tennis(url):
                 classement = match_infos.group(2).strip()
                 dictionnaire_classements[nom_complet] = classement
 
-    # --- 6. Extraction des 16 Matchs Individuels ---
+    # --- 7. Extraction des 16 Matchs Individuels ---
     matchs_individuels = []
     table = soup.find("table")
 
@@ -92,36 +109,59 @@ def scraper_match_table_tennis(url):
                         span_j1 = cols[1].find("span")
                         span_j2 = cols[5].find("span")
 
-                        j1_nom = span_j1.get_text(strip=True) if span_j1 else cols[1].get_text(strip=True)
-                        j2_nom = span_j2.get_text(strip=True) if span_j2 else cols[5].get_text(strip=True)
+                        j1_nom = (
+                            span_j1.get_text(strip=True)
+                            if span_j1
+                            else cols[1].get_text(strip=True)
+                        )
+                        j2_nom = (
+                            span_j2.get_text(strip=True)
+                            if span_j2
+                            else cols[5].get_text(strip=True)
+                        )
 
-                        j1_classement = dictionnaire_classements.get(j1_nom, "Non spécifié")
-                        j2_classement = dictionnaire_classements.get(j2_nom, "Non spécifié")
+                        j1_classement = dictionnaire_classements.get(
+                            j1_nom, "Non spécifié"
+                        )
+                        j2_classement = dictionnaire_classements.get(
+                            j2_nom, "Non spécifié"
+                        )
 
                         input_set_j1 = cols[6].find("input")
                         input_set_j2 = cols[7].find("input")
 
-                        sets_j1 = input_set_j1.get("value", "0") if input_set_j1 else "0"
-                        sets_j2 = input_set_j2.get("value", "0") if input_set_j2 else "0"
+                        sets_j1 = (
+                            input_set_j1.get("value", "0") if input_set_j1 else "0"
+                        )
+                        sets_j2 = (
+                            input_set_j2.get("value", "0") if input_set_j2 else "0"
+                        )
 
                         sets_j1 = int(sets_j1) if sets_j1.isdigit() else sets_j1
                         sets_j2 = int(sets_j2) if sets_j2.isdigit() else sets_j2
 
-                        matchs_individuels.append({
-                            "numero_match": ordre,
-                            "joueur_1": {"nom": j1_nom, "classement": j1_classement},
-                            "joueur_2": {"nom": j2_nom, "classement": j2_classement},
-                            "sets_joueur_1": sets_j1,
-                            "sets_joueur_2": sets_j2,
-                        })
+                        matchs_individuels.append(
+                            {
+                                "numero_match": ordre,
+                                "joueur_1": {
+                                    "nom": j1_nom,
+                                    "classement": j1_classement,
+                                },
+                                "joueur_2": {
+                                    "nom": j2_nom,
+                                    "classement": j2_classement,
+                                },
+                                "sets_joueur_1": sets_j1,
+                                "sets_joueur_2": sets_j2,
+                            }
+                        )
                     except Exception:
                         continue
 
-    # --- 7. Extraction du Résultat Final (Votre NB) ---
+    # --- 8. Extraction du Résultat Final ---
     score_global_equipe_1 = 0
     score_global_equipe_2 = 0
 
-    # On cherche directement les inputs nommés fin1 et fin2
     input_fin1 = soup.find("input", {"name": "fin1", "class": "matchresult"})
     input_fin2 = soup.find("input", {"name": "fin2", "class": "matchresult"})
 
@@ -132,8 +172,6 @@ def scraper_match_table_tennis(url):
         except ValueError:
             pass
     else:
-        # Sécurité / Plan B : Si pour une raison ou une autre ces inputs n'existent pas,
-        # on calcule le score à la main pour éviter un affichage à 0-0.
         for m in matchs_individuels:
             s1, s2 = m["sets_joueur_1"], m["sets_joueur_2"]
             if isinstance(s1, int) and isinstance(s2, int):
@@ -148,6 +186,8 @@ def scraper_match_table_tennis(url):
         "semaine": semaine,
         "equipe_1": equipe1,
         "equipe_2": equipe2,
+        "forfait_equipe_1": forfait_equipe_1,
+        "forfait_equipe_2": forfait_equipe_2,
         "score_global_equipe_1": score_global_equipe_1,
         "score_global_equipe_2": score_global_equipe_2,
         "matchs": matchs_individuels,
@@ -176,7 +216,9 @@ def lister_urls_matchs_division(url_division):
     for link in soup.find_all("a", href=True):
         href = link["href"]
         if "voirfeuille.php" in href:
-            if href.startswith("voirfeuille.php") or href.startswith("/voirfeuille.php"):
+            if href.startswith("voirfeuille.php") or href.startswith(
+                "/voirfeuille.php"
+            ):
                 url_complete = "https://www.frottbf.org/" + href.lstrip("/")
             else:
                 url_complete = href
