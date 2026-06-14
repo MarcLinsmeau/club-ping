@@ -77,28 +77,7 @@ with onglet2:
 
             # --- AFFICHAGE MINIMALISTE DE TOUTES LES RENCONTRES ---
             st.write("### 📅 Liste récapitulative des rencontres de la saison")
-            
-            recap_rencontres = []
-            for renc in tous_les_matchs_scrapes:
-                score_visit = renc.get("score_global_equipe_1", 0)
-                score_visiteur = renc.get("score_global_equipe_2", 0)
-                
-                # Récupération des noms d'équipes
-                eq1_nom = renc.get("equipe_1", "Inconnue")
-                eq2_nom = renc.get("equipe_2", "Inconnue")
 
-                # Injection visuelle du forfait si détecté
-                if renc.get("forfait_equipe_1"):
-                    eq1_nom += " (FORFAIT)"
-                if renc.get("forfait_equipe_2"):
-                    eq2_nom += " (FORFAIT)"
-                
-                recap_rencontres.append({
-                    "Semaine": f"Semaine {renc.get('semaine', '?')}",
-                    "Équipe Visité": eq1_nom,
-                    "Score Global": f"{score_visit} - {score_visiteur}",
-                    "Équipe Visiteur": eq2_nom
-                })
+            st.json(tous_les_matchs_scrapes) 
             
-            # Affichage dans un tableau Streamlit dynamique, triable et scannable
-            st.dataframe(recap_rencontres, use_container_width=True)
+            
